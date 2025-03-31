@@ -1,0 +1,11 @@
+pandas
+numpy
+matplotlib
+opencv-python
+torch
+torchvision
+scikit-learn
+pycairo
+tqdm
+lmdb
+aiofiles

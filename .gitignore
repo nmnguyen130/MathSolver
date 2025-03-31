@@ -1,0 +1,36 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+math_env/
+
+# Data directories
+data/
+
+# Model checkpoints and saved models
+*.pth
+*.pt
+*.h5
+*.ckpt
+*.model
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Processed data files
+*.npz
+*.npy
+*.pkl
+
+# LMDB databases (mentioned in requirements.txt)
+*.lmdb
