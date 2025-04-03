@@ -7,5 +7,4 @@ torchvision
 scikit-learn
 pycairo
 tqdm
-lmdb
 aiofiles

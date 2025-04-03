@@ -4,8 +4,7 @@ import time
 MODULES = {
     # Shared Modules
     '1': 'src.shared.preprocessing.latex_tokenizer',
-    '2': 'src.shared.preprocessing.lmdb_writer',
-    '3': 'src.shared.preprocessing.inkml_loader',
+    '2': 'src.shared.preprocessing.inkml_loader',
     '4': 'src.shared.preprocessing.main',
     
     # Symbol Detection Module

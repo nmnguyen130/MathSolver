@@ -1,7 +1,7 @@
 import re
 from collections import Counter
 
-class LatexTokenizer:
+class LaTeXTokenizer:
     def __init__(self):
         self.special_tokens = ['<pad>', '<sos>', '<eos>', '<unk>']
         self.vocab = {}
@@ -42,7 +42,7 @@ class LatexTokenizer:
         return "".join(token for token in tokens if token not in self.special_tokens)
     
 if __name__ == '__main__':
-    tokenizer = LatexTokenizer()
+    tokenizer = LaTeXTokenizer()
     sample_text = r'\vartheta(n)=\frac{1}{\sqrt{1-\frac{n^{7}}{c^{7}}}}'
     print("Tokens:", tokenizer.tokenize(sample_text))
     tokenizer.build_vocab([sample_text])
