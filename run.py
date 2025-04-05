@@ -5,13 +5,12 @@ MODULES = {
     # Shared Modules
     '1': 'src.shared.preprocessing.latex_tokenizer',
     '2': 'src.shared.preprocessing.inkml_loader',
-    '4': 'src.shared.preprocessing.main',
     
     # Symbol Detection Module
     # '3': 'src.symbol_detection.scripts.trainer',
 
-    # # Mathwriting modules
-    # '1': 'src.mathwriting.scripts.trainer',
+    # Mathwriting modules
+    '3': 'src.mathwriting.scripts.trainer',
     # '2': 'src.mathwriting.scripts.detector',
     # '3': 'src.mathwriting.preprocessing.main',
     # '4': 'src.mathwriting.preprocessing.inkml_dataset',
