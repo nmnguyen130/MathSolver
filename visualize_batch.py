@@ -1,8 +1,9 @@
+import time
 from pathlib import Path
 import matplotlib.pyplot as plt
 from torchvision.utils import make_grid
 
-from src.mathwriting.data.datamodule import MathWritingDataManager
+from src.mathwriting.dataloader.datamodule import MathWritingDataManager
 
 DATA_DIR = "./data/mathwriting-2024/"
 BATCH_SIZE = 16 # Number of samples to visualize
@@ -52,6 +53,7 @@ def visualize_batch():
             return
 
         print(f"Batch loaded. Image tensor shape: {src.shape}, Label tensor shape: {tgt.shape}")
+        print(f"Image tensor min: {src.min()}, max: {src.max()}")  # Thêm kiểm tra giá trị
 
         # 5. Visualize Images
         print("\nVisualizing images...")
@@ -87,6 +89,36 @@ def visualize_batch():
     except Exception as e:
         print(f"Unexpected error: {e}")
 
+def benchmark_loading():
+    print(f"Benchmarking data loading from: {DATA_DIR}")
+    if not Path(DATA_DIR).exists():
+        print(f"Error: Data directory not found at {DATA_DIR}")
+        return
+
+    data_manager = MathWritingDataManager(
+        data_dir=DATA_DIR,
+        batch_size=BATCH_SIZE,
+        num_workers=NUM_WORKERS
+    )
+    train_dataloader = data_manager.get_dataloader("train")
+
+    print("Starting benchmark over full dataset...")
+    total_batches = len(train_dataloader)
+
+    print(f"Batch size: {BATCH_SIZE} | Total batches: {total_batches}")
+    
+    start_time = time.time()
+    for i, batch in enumerate(train_dataloader):
+        src, tgt, tgt_mask = batch
+        if i % 10 == 0:
+            print(f"Processed {i}/{total_batches} batches...")
+        if i % 100 == 0 and i != 0:
+            break
+    end_time = time.time()
+
+    duration = end_time - start_time
+    print(f"\n✅ Completed loading entire dataset in {duration:.2f} seconds")
+    print(f"⏱ Avg time per batch: {duration / total_batches:.3f} seconds")
 
 if __name__ == "__main__":
-    visualize_batch()
+    benchmark_loading()

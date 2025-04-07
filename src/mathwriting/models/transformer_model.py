@@ -2,8 +2,8 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models import densenet121, DenseNet121_Weights
 
+from src.mathwriting.models.custom_cnn import SimpleDenseBlock, TransitionLayer
 from src.mathwriting.models.positional_encoding import PositionalEncoding1D, PositionalEncoding2D
 
 class Permute(nn.Module):
@@ -15,16 +15,21 @@ class Permute(nn.Module):
         return x.permute(*self.dims)
     
 class ImageEncoder(nn.Module):
-    def __init__(self, d_model: int = 256, dropout: float = 0.1):
+    def __init__(self, d_model=256, dropout=0.1):
         super().__init__()
-        # Load DenseNet pretrained, remove the last classifier
-        densenet = densenet121(weights=DenseNet121_Weights.DEFAULT)
-        self.backbone = nn.Sequential(*list(densenet.features.children()))  # only CNN part
+        self.init_conv = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3)
 
-        # Convert feature map (B, 1024, H, W) → (B, d_model, H, W)
-        self.reduce_conv = nn.Conv2d(in_channels=1024, out_channels=d_model, kernel_size=1)
+        self.block1 = SimpleDenseBlock(64, 16, num_layers=4)
+        self.trans1 = TransitionLayer(64 + 4 * 16, 64)
 
-        # Positional encoding + flatten
+        self.block2 = SimpleDenseBlock(64, 16, num_layers=4)
+        self.trans2 = TransitionLayer(64 + 4 * 16, 64)
+
+        self.block3 = SimpleDenseBlock(64, 16, num_layers=4)
+        self.trans3 = TransitionLayer(64 + 4 * 16, 64)
+
+        self.reduce_conv = nn.Conv2d(64, d_model, kernel_size=1)
+
         self.encoder = nn.Sequential(
             Permute(0, 2, 3, 1),                         # (B, H, W, C)
             PositionalEncoding2D(d_model, dropout),     # Add position
@@ -32,10 +37,12 @@ class ImageEncoder(nn.Module):
         )
 
     def forward(self, x):
-        # x shape: (B, 3, H, W)
-        x = self.backbone(x)          # → (B, 1024, H, W)
-        x = self.reduce_conv(x)       # → (B, d_model, H, W)
-        x = self.encoder(x)           # → (B, H*W, d_model)
+        x = self.init_conv(x)
+        x = self.trans1(self.block1(x))
+        x = self.trans2(self.block2(x))
+        x = self.trans3(self.block3(x))
+        x = self.reduce_conv(x)
+        x = self.encoder(x)
         return x
     
 class TransformerDecoder(nn.Module):

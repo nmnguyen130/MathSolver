@@ -38,7 +38,7 @@ class PositionalEncoding2D(nn.Module):
         self,
         d_model: int,
         dropout: float = 0.1,
-        max_len: int = 30, # Default max height/width
+        max_len: int = 32, # Default max height/width
         temperature: float = 10000.0,
     ):
         super().__init__()

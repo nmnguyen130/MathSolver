@@ -4,7 +4,7 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 
-from src.mathwriting.data.datamodule import MathWritingDataManager
+from src.mathwriting.dataloader.datamodule import MathWritingDataManager
 from src.mathwriting.models.transformer_model import ImageToLatexModel
 
 class Trainer:
@@ -18,7 +18,7 @@ class Trainer:
         patience: int = 5,
         device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
     ):
-        self.data_dir = data_dir  
+        self.data_dir = data_dir
         self.checkpoint_dir = checkpoint_dir
         self.num_epochs = num_epochs
         self.batch_size = batch_size
@@ -44,12 +44,13 @@ class Trainer:
     def _initialize_model(self):
         self.model = ImageToLatexModel(vocab_size=self.data_manager.vocab_size).to(self.device)
         self.optimizer = Adam(self.model.parameters(), lr=self.learning_rate)
-        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=3, verbose=True)
+        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=3)
 
     def summary(self):
         total_params = sum(p.numel() for p in self.model.parameters())
         trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         print(f"Model Summary:")
+        print(f"   Device:           {self.device}")
         print(f"   Total parameters: {total_params:,}")
         print(f"   Trainable:        {trainable_params:,}")
 
