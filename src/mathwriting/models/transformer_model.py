@@ -62,29 +62,30 @@ class TransformerDecoder(nn.Module):
 
         self.fc_out = nn.Linear(d_model, vocab_size)
 
-    def forward(self, tgt, memory, tgt_mask=None, tgt_key_padding_mask=None):
+    def forward(self, features, tgt, tgt_mask):
         # tgt: (batch_size, seq_len)
+        padding_mask = tgt.eq(0)
         tgt_emb = self.embedding(tgt) * math.sqrt(self.embedding.embedding_dim)
         tgt_emb = self.pos_encoding(tgt_emb)
 
         # Transformer decoder
         out = self.transformer_decoder(
             tgt_emb,
-            memory,
+            features,
             tgt_mask=tgt_mask,
-            tgt_key_padding_mask=tgt_key_padding_mask,
+            tgt_key_padding_mask=padding_mask,
         )
 
         return self.fc_out(out)
 
 class ImageToLatexModel(nn.Module):
-    def __init__(self, vocab_size, d_model=256, nhead=8, dim_feedforward=2048, dropout=0.1, num_layers=6):
+    def __init__(self, vocab_size, d_model=256, nhead=8, dim_feedforward=1024, dropout=0.2, num_layers=3):
         super().__init__()
         self.encoder = ImageEncoder(d_model, dropout)
         self.decoder = TransformerDecoder(vocab_size, d_model, nhead, dim_feedforward, dropout, num_layers)
         self.vocab_size = vocab_size
 
-    def forward(self, src, tgt, tgt_mask=None, tgt_key_padding_mask=None):
+    def forward(self, src, tgt, tgt_mask=None):
         """
         Args:
             src (Tensor): input image tensor of shape (B, 3, H, W)
@@ -95,11 +96,15 @@ class ImageToLatexModel(nn.Module):
         Returns:
             Tensor: output logits of shape (B, T, vocab_size)
         """
-        memory = self.encoder(src)  # (B, H*W, d_model)
-        out = self.decoder(tgt, memory, tgt_mask, tgt_key_padding_mask)  # (B, T, vocab_size)
+        features = self.encoder(src)  # (B, H*W, d_model)
+        out = self.decoder(features, tgt, tgt_mask)  # (B, T, vocab_size)
         return out
     
-    def compute_loss(self, src, tgt_input, tgt_output, tgt_mask=None):
+    def generate_square_subsequent_mask(self, sz):
+        mask = torch.triu(torch.ones(sz, sz, dtype=torch.bool), diagonal=1)
+        return mask.to(next(self.parameters()).device)
+    
+    def compute_loss(self, src, tgt_input, tgt_output, tgt_mask):
         """
         Computes cross-entropy loss between predicted output and ground-truth.
 
@@ -114,19 +119,6 @@ class ImageToLatexModel(nn.Module):
         """
         out = self.forward(src, tgt_input, tgt_mask)  # (B, T, vocab_size)
         return F.cross_entropy(out.reshape(-1, self.vocab_size), tgt_output.reshape(-1), ignore_index=0)
-    
-    def generate_square_subsequent_mask(self, sz):
-        """
-        Creates a causal mask for transformer decoding.
-
-        Args:
-            sz (int): sequence length
-
-        Returns:
-            Tensor: (sz, sz) mask with -inf above the diagonal
-        """
-        mask = torch.triu(torch.ones(sz, sz) * float("-inf"), diagonal=1)
-        return mask.to(next(self.parameters()).device)
     
     @torch.no_grad()
     def greedy_decode(self, src, tokenizer, max_len=256, bos_token_id=1, eos_token_id=2):
@@ -152,7 +144,7 @@ class ImageToLatexModel(nn.Module):
 
         for i in range(1, max_len):
             # Create causal mask for current sequence
-            tgt_mask = self.generate_square_subsequent_mask(tgt.size(1))
+            tgt_mask = torch.triu(torch.ones(i, i, dtype=torch.bool), diagonal=1)
 
             # Decode one step
             out = self.decoder(tgt, memory, tgt_mask)  # (B, T, vocab_size)

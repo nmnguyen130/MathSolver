@@ -2,15 +2,20 @@ import os
 import time
 
 MODULES = {
+    # Build
+    '1': 'build.pre_render_dataset',
+    '2': 'build.visualize_batch',
+    '3': 'build.visualize_model',
+
     # Shared Modules
-    '1': 'src.shared.preprocessing.latex_tokenizer',
-    '2': 'src.shared.preprocessing.inkml_loader',
+    '4': 'src.shared.preprocessing.latex_tokenizer',
+    '5': 'src.shared.preprocessing.inkml_loader',
     
     # Symbol Detection Module
     # '3': 'src.symbol_detection.scripts.trainer',
 
     # Mathwriting modules
-    '3': 'src.mathwriting.scripts.trainer',
+    '6': 'src.mathwriting.scripts.trainer',
     # '2': 'src.mathwriting.scripts.detector',
     # '3': 'src.mathwriting.preprocessing.main',
     # '4': 'src.mathwriting.preprocessing.inkml_dataset',

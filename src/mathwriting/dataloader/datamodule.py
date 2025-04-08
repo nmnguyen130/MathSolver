@@ -1,5 +1,4 @@
 import torch
-import pickle
 from pathlib import Path
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
