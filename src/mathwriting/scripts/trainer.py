@@ -2,6 +2,7 @@ import os
 import torch
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.profiler import profile, record_function, ProfilerActivity
 from tqdm import tqdm
 
 from src.mathwriting.dataloader.datamodule import MathWritingDataManager
@@ -66,15 +67,22 @@ class Trainer:
             self.best_val_loss = checkpoint.get("best_val_loss", float("inf"))
             self.start_epoch = checkpoint.get("epoch", 0) + 1
 
-    def _save_checkpoint(self, epoch, val_loss):
-        torch.save({
+    def _save_checkpoint(self, epoch, val_loss, is_best=False):
+        filename = os.path.join(self.checkpoint_dir, f"epoch_{epoch+1:02d}.pt")
+        checkpoint = {
             "epoch": epoch,
             "model_state": self.model.state_dict(),
             "optimizer_state": self.optimizer.state_dict(),
             "scheduler_state": self.scheduler.state_dict(),
-            "best_val_loss": val_loss
-        }, self.ckpt_path)
-        print("Saved checkpoint at epoch", epoch)
+            "val_loss": val_loss,
+        }
+        torch.save(checkpoint, filename)
+        print(f"[Checkpoint] Saved model for epoch {epoch+1} at '{filename}'")
+
+        if is_best:
+            best_path = os.path.join(self.checkpoint_dir, "best_model.pt")
+            torch.save(checkpoint, best_path)
+            print(f"[Checkpoint] Updated best model with val_loss={val_loss:.4f}")
 
     def summary(self):
         total_params = sum(p.numel() for p in self.model.parameters())
@@ -86,42 +94,46 @@ class Trainer:
 
     def train(self):
         self.summary()
-        for epoch in range(self.start_epoch, self.num_epochs):
-            self.model.train()
-            total_loss = 0.0
-            pbar = tqdm(self.train_loader, desc=f"[Epoch {epoch+1}/{self.num_epochs}]")
+        try:
+            for epoch in range(self.start_epoch, self.num_epochs):
+                self.model.train()
+                total_loss = 0.0
+                pbar = tqdm(self.train_loader, desc=f"[Epoch {epoch+1}/{self.num_epochs}]")
 
-            for src, tgt, _ in pbar:
-                src, tgt = src.to(self.device), tgt.to(self.device)
-                tgt_input = tgt[:, :-1]
-                tgt_output = tgt[:, 1:]
-                tgt_mask = self.model.generate_square_subsequent_mask(tgt_input.size(1))
+                for src, tgt, _ in pbar:
+                    src, tgt = src.to(self.device), tgt.to(self.device)
+                    tgt_input = tgt[:, :-1]
+                    tgt_output = tgt[:, 1:]
+                    tgt_mask = self.model.generate_square_subsequent_mask(tgt_input.size(1))
 
-                self.optimizer.zero_grad()
-                loss = self.model.compute_loss(src, tgt_input, tgt_output, tgt_mask)
-                loss.backward()
-                self.optimizer.step()
+                    self.optimizer.zero_grad()
+                    loss = self.model.compute_loss(src, tgt_input, tgt_output, tgt_mask)
+                    loss.backward()
+                    self.optimizer.step()
 
-                total_loss += loss.item()
-                pbar.set_postfix(train_loss=loss.item())
+                    total_loss += loss.item()
+                    pbar.set_postfix(train_loss=loss.item())
 
-            avg_train_loss = total_loss / len(self.train_loader)
-            avg_val_loss = self.validate()
-            self.scheduler.step(avg_val_loss)
+                avg_train_loss = total_loss / len(self.train_loader)
+                avg_val_loss = self.validate()
+                self.scheduler.step(avg_val_loss)
 
-            print(f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+                print(f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+                self._save_checkpoint(epoch, avg_val_loss, is_best=(avg_val_loss < self.best_val_loss))
 
-            # Early stopping
-            if avg_val_loss < self.best_val_loss:
-                self.best_val_loss = avg_val_loss
-                self.early_stop_counter = 0
-                torch.save(self.model.state_dict(), self.ckpt_path)
-                print("Saved new best model!")
-            else:
-                self.early_stop_counter += 1
-                if self.early_stop_counter >= self.patience:
-                    print("Early stopping triggered.")
-                    break
+                # Early stopping
+                if avg_val_loss < self.best_val_loss:
+                    self.best_val_loss = avg_val_loss
+                    self.early_stop_counter = 0
+                else:
+                    self.early_stop_counter += 1
+                    if self.early_stop_counter >= self.patience:
+                        print("Early stopping triggered.")
+                        break
+        except KeyboardInterrupt:
+            print("\nTraining interrupted by user. Saving current model...")
+            self._save_checkpoint(epoch, avg_val_loss, is_best=False)
+            print("Checkpoint saved. Exiting training.")
 
     def validate(self):
         self.model.eval()

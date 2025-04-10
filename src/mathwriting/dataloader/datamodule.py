@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from pathlib import Path
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
@@ -84,27 +85,32 @@ class MathWritingDataManager:
         print(f"{folder.stem.capitalize()} samples: {len(dataset)}")
         return dataset
 
-    def collate_fn(self, batch, max_width: int = 512, max_height: int = 384):
+    def collate_fn(self, batch, max_width: int = 256, max_height: int = 192):
         """
         Custom collate function to pad images and labels.
         """
         images, labels = zip(*batch)
 
         # Create white background
-        bg_value = 1.0 if images[0].max() <= 1.0 else 255.0
+        bg_value = 1.0
         src = torch.full((len(images), images[0].size(0), max_height, max_width),
                          bg_value, dtype=images[0].dtype, device=images[0].device)
 
         # Center and pad individual images
         for i, img in enumerate(images):
+            # Resize ảnh để vừa với max_height và max_width, giữ tỷ lệ
             _, img_h, img_w = img.size()
-            pad_h_start = max(0, (max_height - img_h) // 2)
-            pad_w_start = max(0, (max_width - img_w) // 2)
-            pad_h_end = min(max_height, pad_h_start + img_h)
-            pad_w_end = min(max_width, pad_w_start + img_w)
-            img_h_slice = slice(0, pad_h_end - pad_h_start)
-            img_w_slice = slice(0, pad_w_end - pad_w_start)
-            src[i, :, pad_h_start:pad_h_end, pad_w_start:pad_w_end] = img[:, img_h_slice, img_w_slice]
+            scale = min(max_height / img_h, max_width / img_w)
+            new_h = int(img_h * scale)
+            new_w = int(img_w * scale)
+            img = F.interpolate(img.unsqueeze(0), size=(new_h, new_w), mode='bilinear', align_corners=False).squeeze(0)
+
+            # Center và pad ảnh đã resize
+            pad_h_start = (max_height - new_h) // 2
+            pad_w_start = (max_width - new_w) // 2
+            pad_h_end = pad_h_start + new_h
+            pad_w_end = pad_w_start + new_w
+            src[i, :, pad_h_start:pad_h_end, pad_w_start:pad_w_end] = img
 
         # Pad label sequences
         pad_id = getattr(self.tokenizer, 'PAD_ID', 0)

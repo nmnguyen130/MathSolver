@@ -121,4 +121,4 @@ def benchmark_loading():
     print(f"⏱ Avg time per batch: {duration / total_batches:.3f} seconds")
 
 if __name__ == "__main__":
-    benchmark_loading()
+    visualize_batch()

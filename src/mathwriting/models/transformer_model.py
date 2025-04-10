@@ -19,14 +19,14 @@ class ImageEncoder(nn.Module):
         super().__init__()
         self.init_conv = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3)
 
-        self.block1 = SimpleDenseBlock(64, 16, num_layers=4)
-        self.trans1 = TransitionLayer(64 + 4 * 16, 64)
+        self.block1 = SimpleDenseBlock(64, 16, num_layers=3)
+        self.trans1 = TransitionLayer(64 + 3 * 16, 64)
 
-        self.block2 = SimpleDenseBlock(64, 16, num_layers=4)
-        self.trans2 = TransitionLayer(64 + 4 * 16, 64)
+        self.block2 = SimpleDenseBlock(64, 16, num_layers=3)
+        self.trans2 = TransitionLayer(64 + 3 * 16, 64)
 
-        self.block3 = SimpleDenseBlock(64, 16, num_layers=4)
-        self.trans3 = TransitionLayer(64 + 4 * 16, 64)
+        self.block3 = SimpleDenseBlock(64, 16, num_layers=3)
+        self.trans3 = TransitionLayer(64 + 3 * 16, 64)
 
         self.reduce_conv = nn.Conv2d(64, d_model, kernel_size=1)
 
