@@ -15,25 +15,25 @@ class Permute(nn.Module):
         return x.permute(*self.dims)
     
 class ImageEncoder(nn.Module):
-    def __init__(self, d_model=256, dropout=0.1):
+    def __init__(self, d_model=256, growth_rate=16, dropout=0.1):
         super().__init__()
         self.init_conv = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3)
 
-        self.block1 = SimpleDenseBlock(64, 16, num_layers=3)
-        self.trans1 = TransitionLayer(64 + 3 * 16, 64)
+        self.block1 = SimpleDenseBlock(64, growth_rate, num_layers=3)
+        self.trans1 = TransitionLayer(64 + 3 * growth_rate, 64)
 
-        self.block2 = SimpleDenseBlock(64, 16, num_layers=3)
-        self.trans2 = TransitionLayer(64 + 3 * 16, 64)
+        self.block2 = SimpleDenseBlock(64, growth_rate, num_layers=3)
+        self.trans2 = TransitionLayer(64 + 3 * growth_rate, 64)
 
-        self.block3 = SimpleDenseBlock(64, 16, num_layers=3)
-        self.trans3 = TransitionLayer(64 + 3 * 16, 64)
+        self.block3 = SimpleDenseBlock(64, growth_rate, num_layers=3)
+        self.trans3 = TransitionLayer(64 + 3 * growth_rate, 64)
 
         self.reduce_conv = nn.Conv2d(64, d_model, kernel_size=1)
 
         self.encoder = nn.Sequential(
-            Permute(0, 2, 3, 1),                         # (B, H, W, C)
-            PositionalEncoding2D(d_model, dropout),     # Add position
-            nn.Flatten(1, 2),                            # (B, H*W, C)
+            Permute(0, 2, 3, 1),                    # (B, C, H', W') -> (B, H', W', C)
+            PositionalEncoding2D(d_model, dropout), # Maintains shape
+            nn.Flatten(1, 2),                       # (B, H', W', C) -> (B, H'*W', C)
         )
 
     def forward(self, x):
@@ -63,7 +63,15 @@ class TransformerDecoder(nn.Module):
         self.fc_out = nn.Linear(d_model, vocab_size)
 
     def forward(self, features, tgt, tgt_mask):
-        # tgt: (batch_size, seq_len)
+        """
+        Args:
+            features (Tensor): Encoded image features of shape (B, H'*W', d_model).
+            tgt (Tensor): Target token sequence of shape (B, T).
+            tgt_mask (Tensor): Causal mask of shape (T, T).
+
+        Returns:
+            Tensor: Output logits of shape (B, T, vocab_size).
+        """
         padding_mask = tgt.eq(0)
         tgt_emb = self.embedding(tgt) * math.sqrt(self.embedding.embedding_dim)
         tgt_emb = self.pos_encoding(tgt_emb)
@@ -81,22 +89,21 @@ class TransformerDecoder(nn.Module):
 class ImageToLatexModel(nn.Module):
     def __init__(self, vocab_size, d_model=256, nhead=8, dim_feedforward=1024, dropout=0.2, num_layers=3):
         super().__init__()
-        self.encoder = ImageEncoder(d_model, dropout)
+        self.encoder = ImageEncoder(d_model=d_model, growth_rate=16, dropout=dropout)
         self.decoder = TransformerDecoder(vocab_size, d_model, nhead, dim_feedforward, dropout, num_layers)
         self.vocab_size = vocab_size
 
     def forward(self, src, tgt, tgt_mask=None):
         """
         Args:
-            src (Tensor): input image tensor of shape (B, 3, H, W)
-            tgt (Tensor): input token sequence for decoder (B, T)
-            tgt_mask (Tensor, optional): causal mask for decoder
-            tgt_key_padding_mask (Tensor, optional): padding mask for target
+            src (Tensor): Input image tensor of shape (B, 3, H, W).
+            tgt (Tensor): Input token sequence of shape (B, T).
+            tgt_mask (Tensor, optional): Causal mask of shape (T, T).
 
         Returns:
             Tensor: output logits of shape (B, T, vocab_size)
         """
-        features = self.encoder(src)  # (B, H*W, d_model)
+        features = self.encoder(src)  # (B, H'*W', d_model)
         out = self.decoder(features, tgt, tgt_mask)  # (B, T, vocab_size)
         return out
     
@@ -109,13 +116,13 @@ class ImageToLatexModel(nn.Module):
         Computes cross-entropy loss between predicted output and ground-truth.
 
         Args:
-            src (Tensor): input image (B, 3, H, W)
-            tgt_input (Tensor): input token sequence with <BOS> (B, T)
-            tgt_output (Tensor): target sequence shifted by 1 (B, T)
-            tgt_mask (Tensor, optional): decoder mask
+            src (Tensor): Input image of shape (B, 3, H, W).
+            tgt_input (Tensor): Input token sequence with <BOS> of shape (B, T).
+            tgt_output (Tensor): Target token sequence shifted by 1 of shape (B, T).
+            tgt_mask (Tensor): Causal mask of shape (T, T).
 
         Returns:
-            Tensor: scalar loss value
+            Tensor: Scalar cross-entropy loss.
         """
         out = self.forward(src, tgt_input, tgt_mask)  # (B, T, vocab_size)
         return F.cross_entropy(out.reshape(-1, self.vocab_size), tgt_output.reshape(-1), ignore_index=0)
@@ -126,28 +133,27 @@ class ImageToLatexModel(nn.Module):
         Greedy decoding: generates tokens one-by-one based on highest probability.
 
         Args:
-            src (Tensor): input image (B, 3, H, W)
-            tokenizer: tokenizer with `.decode()` method
-            max_len (int): maximum sequence length
-            bos_token_id (int): start token ID
-            eos_token_id (int): end token ID
+            src (Tensor): Input image of shape (B, 3, H, W).
+            tokenizer: Tokenizer with `.decode()` method to convert token IDs to strings.
+            max_len (int): Maximum sequence length.
 
         Returns:
-            List[str]: list of decoded LaTeX strings (batch size)
+            List[str]: List of decoded LaTeX strings, one per batch element.
         """
         self.eval()
-        memory = self.encoder(src)  # Encode image to memory (B, H*W, d_model)
+        features = self.encoder(src)  # Encode image to memory (B, H'*W', d_model)
         batch_size = src.size(0)
 
         # Start with <BOS> token
         tgt = torch.full((batch_size, 1), bos_token_id, dtype=torch.long, device=src.device)
 
-        for i in range(1, max_len):
+        for _ in range(1, max_len):
             # Create causal mask for current sequence
-            tgt_mask = torch.triu(torch.ones(i, i, dtype=torch.bool), diagonal=1)
-
+            print(tgt.size(1))
+            tgt_mask = self.generate_square_subsequent_mask(tgt.size(1)).to(src.device)
+            
             # Decode one step
-            out = self.decoder(tgt, memory, tgt_mask)  # (B, T, vocab_size)
+            out = self.decoder(features, tgt, tgt_mask)  # (B, T, vocab_size)
             next_token = out[:, -1].argmax(-1, keepdim=True)  # Get token with highest score
 
             # Append next token

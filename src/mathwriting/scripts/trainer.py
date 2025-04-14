@@ -1,8 +1,7 @@
 import os
 import torch
-from torch.optim import Adam
+from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.profiler import profile, record_function, ProfilerActivity
 from tqdm import tqdm
 
 from src.mathwriting.dataloader.datamodule import MathWritingDataManager
@@ -13,9 +12,10 @@ class Trainer:
         self,
         data_dir: str,
         checkpoint_dir: str = "checkpoints",
-        num_epochs: int = 20,
+        num_epochs: int = 30,
         batch_size: int = 16,
         learning_rate: float = 1e-4,
+        weight_decay: float = 1e-5,  # L2 regularization
         patience: int = 5,
         device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
     ):
@@ -24,6 +24,7 @@ class Trainer:
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
         self.patience = patience
         self.device = device
 
@@ -54,8 +55,8 @@ class Trainer:
             num_layers=3
         )
         self.model.to(self.device)
-        self.optimizer = Adam(self.model.parameters(), lr=self.learning_rate)
-        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=3)
+        self.optimizer = AdamW(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        self.scheduler = ReduceLROnPlateau(self.optimizer, mode='min', patience=3, factor=0.5)
 
     def _resume_checkpoint(self):
         if os.path.exists(self.ckpt_path):
