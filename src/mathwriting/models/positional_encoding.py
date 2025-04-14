@@ -11,7 +11,12 @@ class PositionalEncoding1D(nn.Module):
         temperature: float = 10000.0,
     ):
         super().__init__()
+        self.dropout = nn.Dropout(dropout)
+        pe = self._compute_pe(d_model, max_len, temperature)
+        self.register_buffer("pe", pe)
 
+    @staticmethod
+    def _compute_pe(d_model, max_len, temperature):
         # Generate position and dimension tensors for encoding
         position = torch.arange(max_len).unsqueeze(1)  # (max_len, 1)
         dim_t = torch.arange(0, d_model, 2, dtype=torch.float32)  # (d_model//2,)
@@ -21,9 +26,7 @@ class PositionalEncoding1D(nn.Module):
         pe = torch.zeros(max_len, d_model)  # (max_len, d_model)
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-
-        self.dropout = nn.Dropout(dropout)
-        self.register_buffer("pe", pe)
+        return pe
 
     def forward(self, x):
         """
@@ -42,7 +45,12 @@ class PositionalEncoding2D(nn.Module):
         temperature: float = 10000.0,
     ):
         super().__init__()
+        self.dropout = nn.Dropout(dropout)
+        pe = self._compute_pe_2d(d_model, max_len, temperature)
+        self.register_buffer("pe", pe)
 
+    @staticmethod
+    def _compute_pe_2d(d_model, max_len, temperature):
         # Generate position and dimension tensors for 1D encoding
         position = torch.arange(max_len).unsqueeze(1)  # (max_len, 1)
         dim_t = torch.arange(0, d_model, 2, dtype=torch.float32)  # (d_model//2,)
@@ -58,8 +66,7 @@ class PositionalEncoding2D(nn.Module):
         for i in range(d_model):
             pe_2D[:, :, i] = pe_1D[:, i].unsqueeze(1) + pe_1D[:, i].unsqueeze(0)
 
-        self.dropout = nn.Dropout(dropout)
-        self.register_buffer("pe", pe_2D)
+        return pe_2D
 
     def forward(self, x):
         """

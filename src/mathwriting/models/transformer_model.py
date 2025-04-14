@@ -141,27 +141,100 @@ class ImageToLatexModel(nn.Module):
             List[str]: List of decoded LaTeX strings, one per batch element.
         """
         self.eval()
-        features = self.encoder(src)  # Encode image to memory (B, H'*W', d_model)
+        features = self.encoder(src)
         batch_size = src.size(0)
-
-        # Start with <BOS> token
+        
         tgt = torch.full((batch_size, 1), bos_token_id, dtype=torch.long, device=src.device)
-
-        for _ in range(1, max_len):
-            # Create causal mask for current sequence
-            print(tgt.size(1))
-            tgt_mask = self.generate_square_subsequent_mask(tgt.size(1)).to(src.device)
+        completed = torch.zeros(batch_size, dtype=torch.bool, device=src.device)
+        
+        max_mask = self.generate_square_subsequent_mask(max_len).to(src.device)
+        outputs = [[] for _ in range(batch_size)]
+        
+        for step in range(1, max_len):
+            tgt_mask = max_mask[:step, :step]
+            out = self.decoder(features, tgt, tgt_mask)
+            next_token = out[:, -1].argmax(-1)
             
-            # Decode one step
-            out = self.decoder(features, tgt, tgt_mask)  # (B, T, vocab_size)
-            next_token = out[:, -1].argmax(-1, keepdim=True)  # Get token with highest score
-
-            # Append next token
-            tgt = torch.cat([tgt, next_token], dim=1)
-
-            # Stop if all sequences have produced <EOS>
-            if (next_token == eos_token_id).all():
+            for i in range(batch_size):
+                if not completed[i]:
+                    outputs[i].append(next_token[i].item())
+                    if next_token[i] == eos_token_id:
+                        completed[i] = True
+            
+            tgt = torch.cat([tgt, next_token.unsqueeze(1)], dim=1)
+            
+            if completed.all():
                 break
+        
+        return [tokenizer.decode(output) for output in outputs]
+    
+    @torch.no_grad()
+    def beam_decode(self, src, tokenizer, beam_width=3, max_len=256, bos_token_id=1, eos_token_id=2):
+        """
+        Performs beam search to generate LaTeX sequences from the input image.
 
-        # Decode token sequences to LaTeX strings
-        return [tokenizer.decode(seq.tolist()) for seq in tgt]
+        Args:
+            src (Tensor): Input image, shape (B, 3, H, W).
+            tokenizer: Tokenizer with a decode() method.
+            beam_width (int): Number of candidate sequences to keep at each step.
+            max_len (int): Maximum length of the generated sequence.
+
+        Returns:
+            List[str]: A list of the best LaTeX sequences for each sample in the batch.
+        """
+        self.eval()
+        batch_size = src.size(0)
+        device = src.device
+        
+        features = self.encoder(src)  # (B, H'*W', d_model)
+        max_mask = self.generate_square_subsequent_mask(max_len).to(device)
+        
+        final_outputs = []
+        
+        for b in range(batch_size):
+            # Initialize the beam for sample b
+            beams = [([bos_token_id], 0.0)]  # (sequence of tokens, log probability)
+            completed_beams = []
+            
+            for step in range(1, max_len):
+                candidates = []
+                
+                # Iterate through each current beam
+                for seq, log_prob in beams:
+                    if seq[-1] == eos_token_id:
+                        completed_beams.append((seq, log_prob))
+                        continue
+                    
+                    # Prepare input for the decoder
+                    tgt = torch.tensor([seq], dtype=torch.long, device=device)  # (1, T)
+                    tgt_mask = max_mask[:len(seq), :len(seq)]
+                    
+                    # Compute probabilities
+                    out = self.decoder(features[b:b+1], tgt, tgt_mask)  # (1, T, vocab_size)
+                    probs = F.log_softmax(out[:, -1], dim=-1).squeeze(0)  # (vocab_size,)
+                    
+                    # Get the top k tokens
+                    top_probs, top_tokens = probs.topk(beam_width)
+                    
+                    # Add new candidates
+                    for k in range(beam_width):
+                        new_seq = seq + [top_tokens[k].item()]
+                        new_log_prob = log_prob + top_probs[k].item()
+                        candidates.append((new_seq, new_log_prob))
+                
+                # Select the top beam_width candidates
+                candidates = sorted(candidates, key=lambda x: x[1], reverse=True)[:beam_width]
+                beams = candidates
+                
+                # If all beams are complete, stop
+                if len(completed_beams) >= beam_width or not beams:
+                    break
+            
+            # Add any unfinished beams to completed_beams
+            completed_beams.extend(beams)
+            
+            # Choose the best sequence
+            best_seq = max(completed_beams, key=lambda x: x[1])[0]
+            final_outputs.append(tokenizer.decode(best_seq))
+        
+        return final_outputs

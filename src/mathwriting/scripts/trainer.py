@@ -166,11 +166,13 @@ class Trainer:
                 if i >= num_samples:
                     break
                 src = src.to(self.device)
-                preds = self.model.greedy_decode(src, self.data_manager.tokenizer)
+                preds_g = self.model.greedy_decode(src, self.data_manager.tokenizer)
+                preds_b = self.model.beam_decode(src, self.data_manager.tokenizer)
                 truths = [self.data_manager.tokenizer.decode(t.tolist()) for t in tgt]
                 print("\nSample", i + 1)
-                print("Pred :", preds[0])
-                print("Truth:", truths[0])
+                print("Pred Greedy :", preds_g[0])
+                print("Pred Beam   :", preds_b[0])
+                print("Truth       :", truths[0])
 
 if __name__ == '__main__':
     trainer = Trainer(
@@ -181,5 +183,5 @@ if __name__ == '__main__':
         learning_rate=1e-4,
     )
 
-    trainer.train()
+    # trainer.train()
     trainer.predict_sample()
