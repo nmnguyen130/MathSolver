@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.mathwriting.models.custom_cnn import SimpleDenseBlock, TransitionLayer
+from src.mathwriting.models.custom_cnn import SimpleDenseBlock, TransitionLayer, SEBlock
 from src.mathwriting.models.positional_encoding import PositionalEncoding1D, PositionalEncoding2D
 
 class Permute(nn.Module):
@@ -15,19 +15,20 @@ class Permute(nn.Module):
         return x.permute(*self.dims)
     
 class ImageEncoder(nn.Module):
-    def __init__(self, d_model=256, growth_rate=16, dropout=0.1):
+    def __init__(self, d_model=256, growth_rate=20, num_layers=4, dropout=0.1):
         super().__init__()
         self.init_conv = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3)
 
-        self.block1 = SimpleDenseBlock(64, growth_rate, num_layers=3)
-        self.trans1 = TransitionLayer(64 + 3 * growth_rate, 64)
+        self.block1 = SimpleDenseBlock(64, growth_rate, num_layers=num_layers)
+        self.trans1 = TransitionLayer(64 + num_layers * growth_rate, 64)
 
-        self.block2 = SimpleDenseBlock(64, growth_rate, num_layers=3)
-        self.trans2 = TransitionLayer(64 + 3 * growth_rate, 64)
+        self.block2 = SimpleDenseBlock(64, growth_rate, num_layers=num_layers)
+        self.trans2 = TransitionLayer(64 + num_layers * growth_rate, 64)
 
-        self.block3 = SimpleDenseBlock(64, growth_rate, num_layers=3)
-        self.trans3 = TransitionLayer(64 + 3 * growth_rate, 64)
+        self.block3 = SimpleDenseBlock(64, growth_rate, num_layers=num_layers)
+        self.trans3 = TransitionLayer(64 + num_layers * growth_rate, 64)
 
+        self.se_block = SEBlock(64)
         self.reduce_conv = nn.Conv2d(64, d_model, kernel_size=1)
 
         self.encoder = nn.Sequential(
@@ -41,6 +42,7 @@ class ImageEncoder(nn.Module):
         x = self.trans1(self.block1(x))
         x = self.trans2(self.block2(x))
         x = self.trans3(self.block3(x))
+        x = self.se_block(x)
         x = self.reduce_conv(x)
         x = self.encoder(x)
         return x
@@ -89,7 +91,7 @@ class TransformerDecoder(nn.Module):
 class ImageToLatexModel(nn.Module):
     def __init__(self, vocab_size, d_model=256, nhead=8, dim_feedforward=1024, dropout=0.2, num_layers=3):
         super().__init__()
-        self.encoder = ImageEncoder(d_model=d_model, growth_rate=16, dropout=dropout)
+        self.encoder = ImageEncoder(d_model=d_model, dropout=dropout)
         self.decoder = TransformerDecoder(vocab_size, d_model, nhead, dim_feedforward, dropout, num_layers)
         self.vocab_size = vocab_size
 
@@ -143,17 +145,23 @@ class ImageToLatexModel(nn.Module):
         self.eval()
         features = self.encoder(src)
         batch_size = src.size(0)
-        
         tgt = torch.full((batch_size, 1), bos_token_id, dtype=torch.long, device=src.device)
         completed = torch.zeros(batch_size, dtype=torch.bool, device=src.device)
-        
         max_mask = self.generate_square_subsequent_mask(max_len).to(src.device)
         outputs = [[] for _ in range(batch_size)]
         
+        # Lưu xác suất và chuỗi token từng bước
+        probs_list = []
+        tokens_list = []
         for step in range(1, max_len):
             tgt_mask = max_mask[:step, :step]
             out = self.decoder(features, tgt, tgt_mask)
-            next_token = out[:, -1].argmax(-1)
+            probs = F.softmax(out[:, -1], dim=-1)  # Xác suất các token
+            next_token = probs.argmax(-1)
+            
+            # Lưu xác suất và token
+            probs_list.append(probs.cpu().numpy())
+            tokens_list.append(next_token.cpu().numpy())
             
             for i in range(batch_size):
                 if not completed[i]:
@@ -166,7 +174,8 @@ class ImageToLatexModel(nn.Module):
             if completed.all():
                 break
         
-        return [tokenizer.decode(output) for output in outputs]
+        decoded = [tokenizer.decode(output) for output in outputs]
+        return decoded, probs_list, tokens_list
     
     @torch.no_grad()
     def beam_decode(self, src, tokenizer, beam_width=3, max_len=256, bos_token_id=1, eos_token_id=2):

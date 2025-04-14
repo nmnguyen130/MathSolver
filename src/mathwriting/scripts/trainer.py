@@ -183,5 +183,5 @@ if __name__ == '__main__':
         learning_rate=1e-4,
     )
 
-    # trainer.train()
+    trainer.train()
     trainer.predict_sample()

@@ -61,6 +61,20 @@ class TransitionLayer(nn.Module):
     def forward(self, x):
         return self.transition(x)
     
+class SEBlock(nn.Module):
+    def __init__(self, channels, reduction=16):
+        super().__init__()
+        self.se = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(channels, channels // reduction, kernel_size=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(channels // reduction, channels, kernel_size=1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        return x * self.se(x)
+    
 class CustomCNN(nn.Module):
     def __init__(self, in_channels=3, growth_rate=16, num_classes=512):
         super().__init__()

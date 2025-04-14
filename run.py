@@ -3,28 +3,17 @@ import time
 
 MODULES = {
     # Build
-    '1': 'build.pre_render_dataset',
-    '2': 'build.visualize_batch',
-    '3': 'build.visualize_model',
+    '1': 'build.api',
+    '2': 'build.pre_render_dataset',
+    '3': 'build.visualize_batch',
+    '4': 'build.visualize_model',
 
     # Shared Modules
-    '4': 'src.shared.preprocessing.latex_tokenizer',
-    '5': 'src.shared.preprocessing.inkml_loader',
-    
-    # Symbol Detection Module
-    # '3': 'src.symbol_detection.scripts.trainer',
+    '5': 'src.shared.preprocessing.latex_tokenizer',
+    '6': 'src.shared.preprocessing.inkml_loader',
 
     # Mathwriting modules
-    '6': 'src.mathwriting.scripts.trainer',
-    # '2': 'src.mathwriting.scripts.detector',
-    # '3': 'src.mathwriting.preprocessing.main',
-    # '4': 'src.mathwriting.preprocessing.inkml_dataset',
-    # '5': 'src.mathwriting.preprocessing.math_expression_dataset',
-    
-    # # Digit recognition modules
-    # '5': 'src.digit_recognition.scripts.main',
-    # '6': 'src.digit_recognition.scripts.preprocessor',
-    # '7': 'src.digit_recognition.scripts.detector',
+    '7': 'src.mathwriting.scripts.trainer',
 }
 
 def print_modules():
