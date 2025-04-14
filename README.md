@@ -2,13 +2,10 @@
 
 This project is focused on developing a machine learning model for mathematical image recognition.
 
-## Folder Structure
-
-Reference: [text](https://actamachina.com/posts/handwritten-mathematical-expression-recognition)
+Link dataset: https://github.com/google-research/google-research/tree/master/mathwriting
+Reference: https://actamachina.com/posts/handwritten-mathematical-expression-recognition
 
 ## Dataset
-
-Link dataset: [text](https://github.com/google-research/google-research/tree/master/mathwriting)
 
 ### Cấu trúc bộ dataset:
 
