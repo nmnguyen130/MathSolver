@@ -4,16 +4,17 @@ import time
 MODULES = {
     # Build
     '1': 'build.api',
-    '2': 'build.pre_render_dataset',
-    '3': 'build.visualize_batch',
-    '4': 'build.visualize_model',
+    '2': 'build.solver',
+    '3': 'build.pre_render_dataset',
+    '4': 'build.visualize_batch',
+    '5': 'build.visualize_model',
 
     # Shared Modules
-    '5': 'src.shared.preprocessing.latex_tokenizer',
-    '6': 'src.shared.preprocessing.inkml_loader',
+    '6': 'src.shared.preprocessing.latex_tokenizer',
+    '7': 'src.shared.preprocessing.inkml_loader',
 
     # Mathwriting modules
-    '7': 'src.mathwriting.scripts.trainer',
+    '8': 'src.mathwriting.scripts.trainer',
 }
 
 def print_modules():

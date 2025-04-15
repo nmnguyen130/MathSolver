@@ -10,3 +10,5 @@ tqdm
 aiofiles
 Flask
 flask-cors
+sympy
+antlr4-python3-runtime==4.11

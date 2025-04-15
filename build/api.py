@@ -1,8 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from PIL import Image
-from io import BytesIO
-import base64
 
 from src.mathwriting.scripts.detector import LatexDetector
 
@@ -20,15 +18,6 @@ def predict():
         # Dạng multipart/form-data (form upload file)
         image = Image.open(request.files["image"])
         
-    elif request.is_json:
-        data = request.get_json()
-        if "image_base64" not in data:
-            return jsonify({"error": "Missing 'image_base64' in JSON body"}), 400
-        try:
-            img_bytes = base64.b64decode(data["image_base64"])
-            image = Image.open(BytesIO(img_bytes))
-        except Exception as e:
-            return jsonify({"error": "Invalid base64 image", "detail": str(e)}), 400
     else:
         return jsonify({"error": "No image provided"}), 400
 

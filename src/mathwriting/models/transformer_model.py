@@ -15,7 +15,7 @@ class Permute(nn.Module):
         return x.permute(*self.dims)
     
 class ImageEncoder(nn.Module):
-    def __init__(self, d_model=256, growth_rate=20, num_layers=4, dropout=0.1):
+    def __init__(self, d_model=256, growth_rate=16, num_layers=4, dropout=0.1):
         super().__init__()
         self.init_conv = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3)
 
