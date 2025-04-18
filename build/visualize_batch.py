@@ -3,7 +3,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from torchvision.utils import make_grid
 
-from src.mathwriting.dataloader.datamodule import MathWritingDataManager
+from src.mathwriting.datamodule.dataloader import MathWritingDataManager
 
 DATA_DIR = "./data/mathwriting-2024/"
 BATCH_SIZE = 16 # Number of samples to visualize

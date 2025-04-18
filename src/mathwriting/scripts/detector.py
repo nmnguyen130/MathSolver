@@ -6,8 +6,8 @@ from torchvision import transforms
 from matplotlib.gridspec import GridSpec
 from matplotlib.animation import FuncAnimation, PillowWriter
 
-from src.mathwriting.models.transformer_model import ImageToLatexModel
-from src.mathwriting.dataloader.datamodule import MathWritingDataManager
+from src.mathwriting.models.hmre_model import MathWritingModel
+from src.mathwriting.datamodule.dataloader import MathWritingDataManager
 
 class LatexDetector:
     def __init__(self, data_dir: str, checkpoint_path: str, device=None):
@@ -17,19 +17,17 @@ class LatexDetector:
         self.tokenizer = self.data_manager.tokenizer
 
         # Load mô hình
-        self.model = ImageToLatexModel(
+        self.model = MathWritingModel(
             vocab_size=self.data_manager.vocab_size,
-            d_model=256,
-            nhead=8,
-            dim_feedforward=1024,
-            dropout=0.2,
-            num_layers=3
+            img_size=224,
+            embed_dim=256
         )
-        # self.model.load_state_dict(torch.load(checkpoint_path, map_location=self.device)["model_state"])
+        self.model.load_state_dict(torch.load(checkpoint_path, map_location=self.device)["model_state"])
         self.model.to(self.device)
         self.model.eval()
 
         self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
         ])
 
@@ -38,9 +36,8 @@ class LatexDetector:
         img_tensor = self.transform(image).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            prediction = self.model.greedy_decode(img_tensor, self.tokenizer)[0]
+            prediction = self.model.greedy_search(img_tensor, self.tokenizer)[0]
         return prediction
-    
     
     def visualize_processing(self, image: Image.Image, output_path: str = "model_processing_animation.gif"):
         image = image.convert("RGB")
@@ -71,9 +68,6 @@ class LatexDetector:
 
             x = self.model.encoder.trans3(self.model.encoder.block3(x))
             add_encoder_output(x, "Sau Block3 + Trans3\n(Kích thước: 14x14, 64 kênh)")
-
-            x = self.model.encoder.se_block(x)
-            add_encoder_output(x, "Sau SE Block\n(Kích thước: 14x14, 64 kênh)")
 
             x = self.model.encoder.reduce_conv(x)
             add_encoder_output(x, "Sau Reduce Conv (1x1)\n(Kích thước: 14x14, 256 kênh)")

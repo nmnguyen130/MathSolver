@@ -5,7 +5,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from src.mathwriting.dataloader.dataset import MathWritingDataset
+from src.mathwriting.datamodule.dataset import MathWritingDataset
 from src.shared.preprocessing.latex_tokenizer import LaTeXTokenizer
 
 class MathWritingDataManager:
@@ -85,11 +85,12 @@ class MathWritingDataManager:
         print(f"{folder.stem.capitalize()} samples: {len(dataset)}")
         return dataset
 
-    def collate_fn(self, batch, max_width: int = 256, max_height: int = 192):
+    def collate_fn(self, batch, img_size=(224, 224)):
         """
         Custom collate function to pad images and labels.
         """
         images, labels = zip(*batch)
+        max_width, max_height = img_size
 
         # Create white background
         bg_value = 1.0
@@ -116,11 +117,7 @@ class MathWritingDataManager:
         pad_id = getattr(self.tokenizer, 'PAD_ID', 0)
         tgt = pad_sequence(labels, batch_first=True, padding_value=pad_id).long()
 
-        # Create target mask (optional, depends on model)
-        seq_len = tgt.size(1)
-        tgt_mask = torch.triu(torch.full((seq_len, seq_len), float('-inf'), device=tgt.device), diagonal=1)
-
-        return src, tgt, tgt_mask
+        return src, tgt, None
     
     def get_dataloader(self, dataset_type: str):
         dataset_map = {

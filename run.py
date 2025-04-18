@@ -11,10 +11,15 @@ MODULES = {
 
     # Shared Modules
     '6': 'src.shared.preprocessing.latex_tokenizer',
-    '7': 'src.shared.preprocessing.inkml_loader',
+    '7': 'src.shared.preprocessing.solution_tokenizer',
+    '8': 'src.shared.preprocessing.inkml_loader',
 
     # Mathwriting modules
-    '8': 'src.mathwriting.scripts.trainer',
+    '9': 'src.mathwriting.scripts.trainer',
+
+    # Mathsolver modules
+    '10': 'src.mathsolver.datamodule.create_dataset',
+    '11': 'src.mathsolver.datamodule.dataset',
 }
 
 def print_modules():

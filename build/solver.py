@@ -1,4 +1,4 @@
-from src.mathsolver import MathSolver
+from src.mathsolver.scripts import MathSolver
 
 def main():
     solver = MathSolver()
