@@ -29,17 +29,14 @@ class MathWritingDataManager:
         self._check_data_dirs()
 
         # Define image transformations
-        self.train_transform = transforms.Compose(
-            [
-                transforms.RandomPerspective(distortion_scale=0.1, p=0.5, fill=255),
-                transforms.ToTensor(),
-            ]
-        )
-        self.val_test_transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-            ]
-        )
+        self.train_transform = transforms.Compose([
+            transforms.RandomPerspective(distortion_scale=0.1, p=0.5, fill=255),
+            transforms.ToTensor(),  # Chuẩn hóa [0, 1]
+        ])
+
+        self.val_test_transform = transforms.Compose([
+            transforms.ToTensor(),
+        ])
 
         # Initialize tokenizer and datasets
         self.tokenizer = None
@@ -114,7 +111,7 @@ class MathWritingDataManager:
             src[i, :, pad_h_start:pad_h_end, pad_w_start:pad_w_end] = img
 
         # Pad label sequences
-        pad_id = getattr(self.tokenizer, 'PAD_ID', 0)
+        pad_id = self.tokenizer.token_to_idx['<pad>']
         tgt = pad_sequence(labels, batch_first=True, padding_value=pad_id).long()
 
         return src, tgt, None

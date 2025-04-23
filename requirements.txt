@@ -4,6 +4,7 @@ matplotlib
 opencv-python
 torch
 torchvision
+torch-geometric
 scikit-learn
 pycairo
 tqdm

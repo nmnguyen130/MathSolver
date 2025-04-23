@@ -1,79 +1,103 @@
 import json
+from typing import Dict, List
 import torch
-from torch.utils.data import Dataset, DataLoader
-from typing import Dict, List, Tuple
+from torch.utils.data import Dataset
+from torch_geometric.data import Data
 
-from src.shared.preprocessing.solution_tokenizer import SolutionTokenizer
+from src.shared.preprocessing.math_tokenizer import MathTokenizer
+from src.mathsolver.models.expression_tree import ExprTreeParser
 
 class MathDataset(Dataset):
-    def __init__(self, json_file: str, max_length: int = 512):
+    def __init__(self, json_file: str, tokenizer: MathTokenizer, max_length: int = 512):
         self.max_length = max_length
-        self.tokenizer = SolutionTokenizer()
+        self.tokenizer = tokenizer
+        self.parser = ExprTreeParser(tokenizer)
+
+        # Đọc dataset từ file JSON
         with open(json_file, 'r', encoding='utf-8') as f:
             self.data = json.load(f)
-        all_texts = []
-        for sample in self.data:
-            all_texts.append(sample['latex_equation'])
-            all_texts.append(sample['query'])
-            all_texts.extend(sample['solution_steps'])
-        self.tokenizer.build_vocab(all_texts)
+        
+        # Xây dựng vocab từ dataset
+        self.tokenizer.build_vocab(self.data)
+
+    def _create_combined_graph(self, step_latex_expressions: List[str]) -> Data:
+        step_trees = []
+        for step_latex in step_latex_expressions:
+            step_tokens = self.tokenizer.tokenize_latex(step_latex)
+            step_tree = self.parser.to_expr_tree(step_tokens)
+            if step_tree is not None:
+                step_trees.append(step_tree)
+                # print(f"Step tree for {step_latex}:")
+                # self._print_tree(step_tree)
+            else:
+                print(f"Warning: Step tree is None for {step_tokens}")
+
+        combined_nodes = step_trees
+        graphs = []
+        node_offset = 0
+        root_indices = []
+        # Tạo graph cho từng cây
+        for i, tree in enumerate(combined_nodes):
+            graph = self.parser.tree_to_graph(tree, self.tokenizer.token_to_idx)
+            graph.edge_index = graph.edge_index + node_offset
+            graphs.append(graph)
+            root_indices.append(node_offset)
+            node_offset += graph.x.size(0)
+            # print(f"Graph {i}: {graph.x.size(0)} nodes, root index: {root_indices[-1]}")
+
+        if not graphs:
+            print("Warning: No valid graphs created")
+            return Data(x=torch.tensor([], dtype=torch.long), edge_index=torch.tensor([[], []], dtype=torch.long))
+
+        # Kết noi các nodes và cạnh
+        x = torch.cat([g.x for g in graphs], dim=0)
+        edge_index = torch.cat([g.edge_index for g in graphs], dim=1)
+
+        # Thêm cạnh giữa các node gốc trong các cây liên tiếp
+        extra_edges = []
+        for i in range(1, len(graphs)):
+            prev_root_idx = root_indices[i-1]
+            curr_root_idx = root_indices[i]
+            extra_edges.append([prev_root_idx, curr_root_idx])
+        
+        if extra_edges:
+            extra_edges = torch.tensor(extra_edges, dtype=torch.long).t().contiguous()
+            edge_index = torch.cat([edge_index, extra_edges], dim=1)
+
+        return Data(x=x, edge_index=edge_index)
     
+    def _print_tree(self, node, level=0):
+        if node is None:
+            print("  " * level + "None")
+            return
+        print("  " * level + node.value)
+        for child in node.children:
+            self._print_tree(child, level + 1)
+
     def __len__(self) -> int:
         return len(self.data)
-    
+
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         sample = self.data[idx]
-        input_text = f"{sample['latex_equation']} [SEP] {sample['query']}"
-        target_text = " ".join(sample['solution_steps'])
-        input_ids = self.tokenizer.encode(input_text, max_length=self.max_length)
-        target_ids = self.tokenizer.encode(target_text, max_length=self.max_length)
+        latex_equation = sample.get("latex_equation", "")
+        query = sample.get("query", "")
+        solution_steps = sample.get("solution_steps", [])
+
+        input_ids, target_ids, graph_data = self.tokenizer.encode(
+            latex_equation=latex_equation,
+            query=query,
+            solution_steps=solution_steps,
+            graph_fn=self._create_combined_graph
+        )
+
+        input_ids = input_ids[:self.max_length]
+        target_ids = target_ids[:self.max_length]
+
         input_ids = torch.tensor(input_ids, dtype=torch.long)
         target_ids = torch.tensor(target_ids, dtype=torch.long)
-        input_attention_mask = (input_ids != self.tokenizer.token_to_idx["<pad>"]).long()
-        target_attention_mask = (target_ids != self.tokenizer.token_to_idx["<pad>"]).long()
+        
         return {
             'input_ids': input_ids,
-            'attention_mask': input_attention_mask,
             'target_ids': target_ids,
-            'target_attention_mask': target_attention_mask
+            'graph_data': graph_data
         }
-
-def collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
-    input_ids = torch.stack([item['input_ids'] for item in batch])
-    attention_mask = torch.stack([item['attention_mask'] for item in batch])
-    target_ids = torch.stack([item['target_ids'] for item in batch])
-    target_attention_mask = torch.stack([item['target_attention_mask'] for item in batch])
-    return {
-        'input_ids': input_ids,
-        'attention_mask': attention_mask,
-        'target_ids': target_ids,
-        'target_attention_mask': target_attention_mask
-    }
-
-def get_dataloader(json_file: str, batch_size: int = 32, shuffle: bool = True, num_workers: int = 0) -> DataLoader:
-    dataset = MathDataset(json_file)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=num_workers,
-        collate_fn=collate_fn
-    )
-    return dataloader
-
-if __name__ == "__main__":
-    json_file = "data/mathsolver/math_dataset.json"
-    dataloader = get_dataloader(json_file, batch_size=4, shuffle=True, num_workers=0)
-    for batch in dataloader:
-        print("Batch keys:", batch.keys())
-        print("Input IDs shape:", batch['input_ids'].shape)
-        print("Target IDs shape:", batch['target_ids'].shape)
-        print("Sample input IDs:", batch['input_ids'][0][:10])
-        print("Sample target IDs:", batch['target_ids'][0][:10])
-        dataset = MathDataset(json_file)
-        sample = dataset[0]
-        input_text = dataset.tokenizer.decode(sample['input_ids'].tolist())
-        target_text = dataset.tokenizer.decode(sample['target_ids'].tolist())
-        print("Sample input decoded:", input_text)
-        print("Sample target decoded:", target_text)
-        break

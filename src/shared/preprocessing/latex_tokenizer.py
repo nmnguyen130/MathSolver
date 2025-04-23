@@ -7,7 +7,10 @@ class LaTeXTokenizer:
         self.vocab = {}
         self.token_to_idx = {}
         self.idx_to_token = {}
-        self._command_re = re.compile(r'\\[a-zA-Z]+|\\.|[a-zA-Z0-9]|\S')
+        self._command_re = re.compile(
+            # r'\\(mathbb{[a-zA-Z]}|begin{[a-z]+}|end{[a-z]+}|operatorname\*|[a-zA-Z]+|.)'
+            r'\\[a-zA-Z]+|\\.|[a-zA-Z0-9]|\S'
+        )
 
     def build_vocab(self, train_data):
         # Initialize special tokens in the vocabulary
@@ -43,7 +46,7 @@ class LaTeXTokenizer:
     
 if __name__ == '__main__':
     tokenizer = LaTeXTokenizer()
-    sample_text = r'\vartheta(n)=\frac{1}{\sqrt{1-\frac{n^{7}}{c^{7}}}}'
+    sample_text = r'\begin{cases}x + y > 3 \\x - y < 2\end{cases}'
     print("Tokens:", tokenizer.tokenize(sample_text))
     tokenizer.build_vocab([sample_text])
     print("Vocab:", tokenizer.vocab)
