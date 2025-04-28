@@ -3,9 +3,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from torchvision.utils import make_grid
 
-from src.mathwriting.datamodule.dataloader import MathWritingDataManager
+from src.image2latex.datamodule.dataloader import ImageLatexDataManager
 
-DATA_DIR = "./data/mathwriting-2024/"
+DATA_DIR = "./data/im2latex/"
 BATCH_SIZE = 16 # Number of samples to visualize
 NUM_WORKERS = 0 # Keep this 0 for visualization script unless needed
 
@@ -20,7 +20,7 @@ def visualize_batch():
     try:
         # 1. Instantiate the Data Manager
         print("Instantiating DataManager...")
-        data_manager = MathWritingDataManager(
+        data_manager = ImageLatexDataManager(
             data_dir=DATA_DIR,
             batch_size=BATCH_SIZE,
             num_workers=NUM_WORKERS
@@ -44,7 +44,7 @@ def visualize_batch():
         print(f"Fetching one batch of size {BATCH_SIZE}...")
         try:
             batch = next(iter(train_dataloader))
-            src, tgt, tgt_mask = batch # Assuming collate_fn returns these three
+            src, tgt = batch # Assuming collate_fn returns these three
         except StopIteration:
             print("Error: Could not fetch a batch from the dataloader (dataloader might be empty).")
             return
@@ -95,7 +95,7 @@ def benchmark_loading():
         print(f"Error: Data directory not found at {DATA_DIR}")
         return
 
-    data_manager = MathWritingDataManager(
+    data_manager = ImageLatexDataManager(
         data_dir=DATA_DIR,
         batch_size=BATCH_SIZE,
         num_workers=NUM_WORKERS

@@ -12,8 +12,9 @@ __pycache__/
 dist/
 *.egg-info/
 
-# Virtual environments
+# Environments
 math_env/
+node_modules/
 
 # Data directories
 data/
@@ -24,6 +25,7 @@ data/
 *.h5
 *.ckpt
 *.model
+*.rar
 
 # OS specific files
 .DS_Store

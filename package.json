@@ -1,0 +1,24 @@
+{
+  "name": "mathai",
+  "version": "1.0.0",
+  "description": "This project is focused on developing a machine learning model for mathematical image recognition.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nmnguyen130/MathSolver.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/nmnguyen130/MathSolver/issues"
+  },
+  "homepage": "https://github.com/nmnguyen130/MathSolver#readme",
+  "dependencies": {
+    "mathjax-full": "^3.2.2"
+  }
+}

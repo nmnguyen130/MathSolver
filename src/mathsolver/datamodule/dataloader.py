@@ -98,6 +98,7 @@ if __name__ == '__main__':
         input_ids = batch['input_ids']
         target_ids = batch['target_ids']
         graph_data = batch['graph_data'][0]
+        print(graph_data)
         
         input_decode = dataloader.decode(input_ids)
         target_decode = dataloader.decode(target_ids)

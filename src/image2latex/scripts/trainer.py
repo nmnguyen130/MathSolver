@@ -1,12 +1,12 @@
 import os
 import torch
 import torch.nn as nn
-from torch.optim import Adam
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 
-from src.mathwriting.datamodule.dataloader import MathWritingDataManager
-from src.mathwriting.models.hmre_model import MathWritingModel
+from src.image2latex.datamodule.dataloader import ImageLatexDataManager
+from src.image2latex.models.model import ImageToLatexModel
 
 class Trainer:
     def __init__(
@@ -16,7 +16,7 @@ class Trainer:
         num_epochs: int = 30,
         batch_size: int = 16,
         learning_rate: float = 1e-4,
-        weight_decay: float = 1e-5,  # L2 regularization
+        weight_decay: float = 1e-4,  # L2 regularization
         patience: int = 3,
         min_delta: float = 0.001,
         device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
@@ -36,40 +36,40 @@ class Trainer:
         self.start_epoch = 0
 
         os.makedirs(self.checkpoint_dir, exist_ok=True)
-        self.ckpt_path = os.path.join(self.checkpoint_dir, "best_model.pt")
+        self.ckpt_path = os.path.join(self.checkpoint_dir, "best_model_29.pt")
 
         self._load_data()
         self._initialize_model()
         self._resume_checkpoint()
 
     def _load_data(self):
-        self.data_manager = MathWritingDataManager(data_dir=self.data_dir, batch_size=self.batch_size)
-        print(self.data_manager.tokenizer.vocab)
+        self.data_manager = ImageLatexDataManager(data_dir=self.data_dir, batch_size=self.batch_size)
         self.train_loader = self.data_manager.get_dataloader("train")
         self.val_loader = self.data_manager.get_dataloader("val")
+        self.test_loader = self.data_manager.get_dataloader("test")
 
-    def _initialize_model(self):
-        self.model = MathWritingModel(
+    def _initialize_model(self, new_lr=None):
+        self.model = ImageToLatexModel(
             vocab_size=self.data_manager.vocab_size,
-            img_size=224,
-            d_model=128,
-            d_ff=512,
-            num_heads=4,
-            num_layers=3,
-            dropout=0.2
         )
         self.model.to(self.device)
         self.criterion = nn.CrossEntropyLoss(ignore_index=0)  # 0 là pad_id
-        self.optimizer = Adam(self.model.parameters(), lr=self.learning_rate)
-        self.scheduler = ReduceLROnPlateau(self.optimizer, mode='min', patience=3, factor=0.5)
 
-    def _resume_checkpoint(self):
+        lr_to_use = new_lr if new_lr is not None else self.learning_rate
+        self.optimizer = AdamW(self.model.parameters(), lr=lr_to_use, weight_decay=self.weight_decay)
+        self.scheduler = CosineAnnealingLR(self.optimizer, T_max=45, eta_min=1e-6)
+
+    def _resume_checkpoint(self, reset_lr=False, new_lr=5e-6):
         if os.path.exists(self.ckpt_path):
             print("Resuming from checkpoint...")
             checkpoint = torch.load(self.ckpt_path, map_location=self.device)
             self.model.load_state_dict(checkpoint["model_state"])
-            self.optimizer.load_state_dict(checkpoint["optimizer_state"])
-            self.scheduler.load_state_dict(checkpoint["scheduler_state"])
+            if reset_lr:
+                print(f"Resetting optimizer and scheduler with new learning rate: {new_lr}")
+                self._initialize_model(new_lr=new_lr)
+            else:
+                self.optimizer.load_state_dict(checkpoint["optimizer_state"])
+                self.scheduler.load_state_dict(checkpoint["scheduler_state"])
             self.best_val_loss = checkpoint.get("val_loss", float("inf"))
             self.start_epoch = checkpoint.get("epoch", 0) + 1
 
@@ -112,14 +112,16 @@ class Trainer:
                     self.optimizer.zero_grad()
                     loss = self.criterion(outputs.reshape(-1, outputs.size(-1)), tgt_output.reshape(-1))
                     loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                     self.optimizer.step()
 
                     total_loss += loss.item()
-                    pbar.set_postfix(train_loss=loss.item())
+                    current_lr = self.optimizer.param_groups[0]['lr']
+                    pbar.set_postfix(train_loss=loss.item(), lr=current_lr)
 
                 avg_train_loss = total_loss / len(self.train_loader)
                 avg_val_loss = self.validate()
-                self.scheduler.step(avg_val_loss)
+                self.scheduler.step()
 
                 print(f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
                 is_best = avg_val_loss < self.best_val_loss - self.min_delta
@@ -168,26 +170,29 @@ class Trainer:
         self.model.eval()
         self.load_best_model()
         with torch.no_grad():
-            for i, (src, tgt, _) in enumerate(self.val_loader):
+            for i, (src, tgt) in enumerate(self.test_loader):
                 if i >= num_samples:
                     break
                 src = src.to(self.device)
-                preds_g = self.model.greedy_search(src, self.data_manager.tokenizer)
-                # preds_b = self.model.beam_decode(src, self.data_manager.tokenizer)
+                preds = self.model.generate(src)
+                preds_decoded = [self.data_manager.tokenizer.decode(pred.tolist()) for pred in preds]
                 truths = [self.data_manager.tokenizer.decode(t.tolist()) for t in tgt]
+
                 print("\nSample", i + 1)
-                print("Pred Greedy :", preds_g[0])
+                print("Pred      :", preds_decoded[0])
                 # print("Pred Beam   :", preds_b[0])
-                print("Truth       :", truths[0])
+                print("Truth     :", truths[0])
 
 if __name__ == '__main__':
     trainer = Trainer(
-        data_dir="data/mathwriting-2024/",
-        checkpoint_dir="src/mathwriting/checkpoints",
-        num_epochs=30,
-        batch_size=16,
-        learning_rate=1e-4,
+        data_dir="data/im2latex/",
+        checkpoint_dir="src/image2latex/checkpoints",
+        num_epochs=45,
+        batch_size=1,
+        learning_rate=5e-6,
+        weight_decay=1e-4
     )
 
-    trainer.train()
-    trainer.predict_sample()
+    trainer._resume_checkpoint(reset_lr=True, new_lr=5e-6)
+    # trainer.train()
+    trainer.predict_sample(num_samples=3)

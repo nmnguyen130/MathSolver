@@ -21,6 +21,11 @@ MODULES = {
     '10': 'src.mathsolver.datamodule.create_dataset',
     '11': 'src.mathsolver.datamodule.dataloader',
     '12': 'src.mathsolver.scripts.trainer',
+
+    '13': 'src.image2latex.preprocessing.filter_error_image',
+
+    '15': 'src.image2latex.datamodule.dataloader',
+    '16': 'src.image2latex.scripts.trainer',
 }
 
 def print_modules():

@@ -1,99 +1,68 @@
 import math
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.nn import TransformerDecoder, TransformerDecoderLayer
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model: int, max_len: int = 100):
+    def __init__(self, d_model: int, max_len: int = 512, dropout=0.1):
         super().__init__()
+        self.dropout = nn.Dropout(dropout)
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        
-        # Create the divisor to scale the positions appropriately
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        
-        # Apply sine to even indices and cosine to odd indices for positional encoding
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        
-        # Add batch dimension and register as a buffer (not trainable)
         pe = pe.unsqueeze(0)
         self.register_buffer('pe', pe)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x + self.pe[:, :x.size(1), :]
+        x = x + self.pe[:, :x.size(1), :]
+        return self.dropout(x)
     
-# class TransformerEncoder(nn.Module):
-#     def __init__(self, embed_dim: int, num_heads: int, num_layers: int, dim_feedforward: int, dropout: float = 0.1):
-#         super().__init__()
-#         encoder_layer = nn.TransformerEncoderLayer(
-#             d_model=embed_dim, nhead=num_heads, dim_feedforward=dim_feedforward, dropout=dropout, batch_first=True
-#         )
-#         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-#         self.norm = nn.LayerNorm(embed_dim)
-
-#     def forward(self, x):
-#         x = self.encoder(x)
-#         return self.norm(x)
-
-# class VisionTransformer(nn.Module):
-#     def __init__(self, img_size: int = 224, patch_size: int = 8, in_channels: int = 3, embed_dim: int = 256, dim_feedforward: int = 512):
-#         super().__init__()
-#         self.patch_size = patch_size
-#         self.num_patches = (img_size // patch_size) ** 2
-#         self.proj = nn.Conv2d(in_channels, embed_dim, kernel_size=patch_size, stride=patch_size)
-#         self.pos_embed = nn.Parameter(torch.randn(1, self.num_patches, embed_dim) * 0.02)
-#         self.encoder = TransformerEncoder(
-#             embed_dim=embed_dim, num_heads=4, num_layers=3, dim_feedforward=dim_feedforward, dropout=0.1
-#         )
-
-#     def forward(self, x):
-#         x = self.proj(x)  # (B, embed_dim, H/patch_size, W/patch_size)
-#         x = x.flatten(2).transpose(1, 2)  # (B, num_patches, embed_dim)
-#         x = x + self.pos_embed
-#         x = self.encoder(x)
-#         return x
-    
-class CNNEncoder(nn.Module):
-    def __init__(self, in_channels: int = 3, embed_dim: int = 128):
+# Vision Transformer Encoder (patch size 16)
+class PatchEmbedding(nn.Module):
+    def __init__(self, img_size=224, patch_size=16, in_channels=3, embed_dim=128):
         super().__init__()
-        self.cnn = nn.Sequential(
-            nn.Conv2d(in_channels, 32, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(64, embed_dim, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool2d((7, 7))  # Giảm kích thước đầu ra
-        )
-        self.flatten = nn.Flatten(start_dim=2)
-        self.proj = nn.Linear(7 * 7, embed_dim)
+        self.proj = nn.Conv2d(in_channels, embed_dim, kernel_size=patch_size, stride=patch_size)
+        self.num_patches = (img_size // patch_size) ** 2
+
+        # Create learnable positional embeddings
+        self.pos_embed = nn.Parameter(torch.randn(1, self.num_patches, embed_dim) * 0.02)
 
     def forward(self, x):
-        x = self.cnn(x)  # (B, embed_dim, 7, 7)
-        x = self.flatten(x).transpose(1, 2)  # (B, 49, embed_dim)
-        x = self.proj(x)  # (B, 49, embed_dim)
+        x = self.proj(x)  # B, embed_dim, H/patch_size, W/patch_size
+        x = x.flatten(2).transpose(1, 2)  # B, num_patches, embed_dim
+        x = x + self.pos_embed
         return x
+    
+class TransformerEncoder(nn.Module):
+    def __init__(self, d_model: int, d_ff: int, num_heads: int, num_layers: int, dropout: float = 0.1):
+        super().__init__()
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model, nhead=num_heads, dim_feedforward=d_ff, dropout=dropout, batch_first=True
+        )
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.norm = nn.LayerNorm(d_model)
+
+    def forward(self, x):
+        x = self.encoder(x)
+        return self.norm(x)
 
 class LaTeXDecoder(nn.Module):
-    def __init__(self, vocab_size: int, embed_dim: int = 128, num_heads: int = 4, num_layers: int = 3, dim_feedforward: int = 512):
+    def __init__(self, vocab_size: int, d_model: int = 128, d_ff: int = 512, num_heads: int = 4, num_layers: int = 3, dropout: float = 0.1):
         super().__init__()
-        self.embed_dim = embed_dim
-        self.embedding = nn.Embedding(vocab_size, embed_dim)
-        self.pos_encoder = PositionalEncoding(embed_dim)
-        decoder_layer = TransformerDecoderLayer(
-            d_model=embed_dim, nhead=num_heads, dim_feedforward=dim_feedforward, dropout=0.1, batch_first=True
+        self.d_model = d_model
+        self.embedding = nn.Embedding(vocab_size, d_model)
+        self.pos_encoder = PositionalEncoding(d_model, dropout=dropout)
+        decoder_layer = nn.TransformerDecoderLayer(
+            d_model=d_model, nhead=num_heads, dim_feedforward=d_ff, dropout=dropout, batch_first=True
         )
-        self.decoder = TransformerDecoder(decoder_layer, num_layers=num_layers)
-        self.fc_out = nn.Linear(embed_dim, vocab_size)
-        self.norm = nn.LayerNorm(embed_dim)
+        self.decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_layers)
+        self.fc_out = nn.Linear(d_model, vocab_size)
+        self.norm = nn.LayerNorm(d_model)
 
     def forward(self, features, tgt, tgt_mask):
         padding_mask = tgt.eq(0)  # True cho <pad>, False cho token hợp lệ
-        tgt_emb = self.embedding(tgt) * math.sqrt(self.embed_dim)
+        tgt_emb = self.embedding(tgt) * math.sqrt(self.d_model)
         tgt_emb = self.pos_encoder(tgt_emb)
         output = self.decoder(
             tgt_emb,
@@ -107,17 +76,21 @@ class MathWritingModel(nn.Module):
     """
     Complete model for Math Writing task, combining image embedding, transformer encoder, and LaTeX decoder.
     """
-    def __init__(self, vocab_size: int, embed_dim: int = 128, dim_feedforward: int = 512):
+    def __init__(self, vocab_size: int, img_size: int = 224, d_model: int = 128, d_ff: int = 512, num_heads: int = 4, num_layers: int = 3, dropout: float = 0.1):
         super().__init__()
-        self.encoder = CNNEncoder(in_channels=3, embed_dim=embed_dim)
-        self.decoder = LaTeXDecoder(vocab_size=vocab_size, embed_dim=embed_dim, dim_feedforward=dim_feedforward)
+        self.encoder = PatchEmbedding(img_size=img_size, embed_dim=d_model)
+        self.transformer_encoder = TransformerEncoder(d_model=d_model, d_ff=d_ff, num_heads=num_heads, num_layers=num_layers, dropout=dropout)
+        self.decoder = LaTeXDecoder(vocab_size=vocab_size, d_model=d_model, d_ff=d_ff, num_heads=num_heads, num_layers=num_layers, dropout=dropout)
         
     def generate_square_subsequent_mask(self, sz: int):
         mask = torch.triu(torch.ones(sz, sz, dtype=torch.bool), diagonal=1)
         return mask
 
     def forward(self, img, tgt):
+        # Extract image features
         features = self.encoder(img)  # (B, num_patches, embed_dim)
+        features = self.transformer_encoder(features)  # (B, num_patches, embed_dim)
+
         tgt_mask = self.generate_square_subsequent_mask(tgt.size(1)).to(tgt.device)
         output = self.decoder(features, tgt, tgt_mask)  # (B, tgt_len, vocab_size)
         return output

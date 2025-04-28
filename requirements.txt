@@ -6,6 +6,7 @@ torch
 torchvision
 torch-geometric
 scikit-learn
+pylatexenc
 pycairo
 tqdm
 aiofiles

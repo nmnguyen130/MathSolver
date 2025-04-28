@@ -4,7 +4,10 @@ This project is focused on developing a machine learning model for mathematical 
 
 Link dataset: https://github.com/google-research/google-research/tree/master/mathwriting
 
-Reference: https://actamachina.com/posts/handwritten-mathematical-expression-recognition
+Reference:
+
+- https://actamachina.com/posts/handwritten-mathematical-expression-recognition
+- https://github.com/ritheshkumar95/im2latex-tensorflow/tree/master
 
 ## Dataset
 
