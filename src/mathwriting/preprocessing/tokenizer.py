@@ -1,28 +1,22 @@
 import re
+from pathlib import Path
 from collections import Counter
 
 class LaTeXTokenizer:
-    def __init__(self):
+    def __init__(self, vocab_file: Path = None):
         self.special_tokens = ['<pad>', '<sos>', '<eos>', '<unk>']
         self.vocab = {}
         self.token_to_idx = {}
         self.idx_to_token = {}
         # Regex: Xử lý lệnh LaTeX, ký tự, số, ký hiệu toán học
         self._command_re = re.compile(
-            r'('
-            r'\\(?:begin|end)\{[a-zA-Z]+\}|'  # \begin{matrix}, \end{matrix}
-            r'\\[a-zA-Z]+(?:{[a-zA-Z]*})?|'  # \frac, \mathbb{A}, \begin{cases}
-            r'\\[\[\]{}()|]|'                # \{, \}, \[, \], \(, \), \|
-            r'[0-9]+|'                       # 0-9, 123
-            r'[a-zA-Z]|'                     # a-z, A-Z
-            r'[\,\;\:\!\?\.]|'               # , ; : ! ? .
-            r'[\{\}\[\]\(\)]|'               # { } [ ] ( )
-            r'[\*\/+\-\_=><\^~]|'            # * / + - _ = > < ^ ~
-            r'[&\#\%\|]|'                    # & # % |
-            r'\\|'                           # Dấu \ riêng
-            r'\s+'                           # Khoảng trắng
-            r')'
+            r"\\[a-zA-Z]+|\\.|[a-zA-Z0-9]|\S"
         )
+
+        if vocab_file and vocab_file.exists():
+            self.load_vocab(vocab_file)
+
+        self.vocab_size = len(self.vocab)
 
     def build_vocab(self, latex_data: str):
         # Initialize special tokens in the vocabulary
@@ -42,6 +36,10 @@ class LaTeXTokenizer:
         self.token_to_idx = self.vocab
         self.idx_to_token = {idx: token for token, idx in self.vocab.items()}
 
+        # Save vocab to vocab.txt
+        # output_file = Path("src/mathwriting/checkpoints/vocab.txt")
+        # self.save_vocab(output_file)
+
     def tokenize(self, expression: str) -> list[str]:
         return self._command_re.findall(expression)
     
@@ -54,19 +52,35 @@ class LaTeXTokenizer:
         tokens = [self.idx_to_token.get(idx, "<unk>") for idx in token_idx]
         if "<eos>" in tokens:
             tokens = tokens[:tokens.index("<eos>")]
-        return "".join(token for token in tokens if token not in self.special_tokens)
+        
+        decoded = []
+        prev_token = ""
+        for token in tokens:
+            if token in self.special_tokens:
+                continue
+            
+            # Nếu trước là lệnh LaTeX và sau là chữ/số -> thêm khoảng trắng
+            if prev_token.startswith("\\") and re.match(r"[a-zA-Z0-9]", token):
+                decoded.append(" ")
+            
+            decoded.append(token)
+            prev_token = token
+
+        return "".join(decoded)
     
-    def save_vocab(self, output_file: str) -> None:
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write('{\n')
-            for token, idx in self.vocab.items():
-                f.write(f'  "{token}": {idx},\n')
-            f.write('}\n')
+    def save_vocab(self, output_file: Path):
+        with open(output_file, "w", encoding="utf-8") as f:
+            # Lưu mỗi token lên một dòng mới
+            for token in self.vocab:
+                f.write(f"{token}\n")
         print(f"Tokenizer saved to {output_file}")
 
-    def load_vocab(self, vocab_file: str) -> None:
-        with open(vocab_file, 'r', encoding='utf-8') as f:
-            self.vocab = eval(f.read())  # Giả sử file JSON đơn giản
+    def load_vocab(self, vocab_file: Path):
+        with open(vocab_file, "r", encoding="utf-8") as f:
+            vocab = [line.strip() for line in f if line.strip()]
+
+        self.vocab = {token: idx for idx, token in enumerate(vocab)}
+
         self.token_to_idx = self.vocab
         self.idx_to_token = {idx: token for token, idx in self.vocab.items()}
     

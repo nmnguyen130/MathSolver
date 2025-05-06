@@ -4,9 +4,10 @@ matplotlib
 opencv-python
 torch
 torchvision
-torch-geometric
 scikit-learn
-pylatexenc
+transformers
+sentencepiece
+jiwer
 pycairo
 tqdm
 aiofiles

@@ -4,6 +4,7 @@ import torch.nn as nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
+import jiwer
 
 from src.mathsolver.datamodule.dataloader import MathSolverDataManager
 from src.mathsolver.models.model import MathSolverModel
@@ -54,10 +55,6 @@ class Trainer:
     def _initialize_model(self):
         self.model = MathSolverModel(
             vocab_size=self.data_manager.vocab_size,
-            d_model=64,
-            nhead=4,
-            num_layers=3,
-            d_ff=256,
         )
         self.model.to(self.device)
         self.criterion = nn.CrossEntropyLoss(ignore_index=0)
@@ -106,13 +103,12 @@ class Trainer:
             for i, batch in enumerate(pbar):
                 input_ids = batch['input_ids'].to(self.device)
                 target_ids = batch['target_ids'].to(self.device)
-                graph_data = [g.to(self.device) for g in batch['graph_data']]
 
                 target_inp = target_ids[:, :-1]  # Exclude <eos>
                 target_real = target_ids[:, 1:]  # Exclude <sos>
 
                 self.optimizer.zero_grad()
-                outputs = self.model(graph_data, target_inp, input_ids)
+                outputs = self.model(input_ids, target_inp)
                 loss = self.criterion(outputs.view(-1, outputs.size(-1)), target_real.reshape(-1))
                 loss.backward()
                 self.optimizer.step()
@@ -121,10 +117,10 @@ class Trainer:
                 pbar.set_postfix(train_loss=loss.item())
 
             avg_train_loss = total_loss / len(self.train_loader)
-            avg_val_loss = self.validate()
+            avg_val_loss, avg_val_acc, avg_val_cer = self.validate()
             self.scheduler.step()
 
-            print(f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+            print(f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f} | Val Acc: {avg_val_acc:.4f} | CER: {avg_val_cer:.4f}")
             is_best = avg_val_loss < self.best_val_loss - self.min_delta
             self._save_checkpoint(epoch, avg_val_loss, is_best=is_best)
 
@@ -140,23 +136,50 @@ class Trainer:
     def validate(self):
         self.model.eval()
         total_loss = 0.0
+        total_correct = 0
+        total_tokens = 0
+        cer_scores = []
+
         with torch.no_grad():
             pbar = tqdm(self.val_loader, desc="Validating", leave=False)
             for i, batch in enumerate(pbar):
                 input_ids = batch['input_ids'].to(self.device)
                 target_ids = batch['target_ids'].to(self.device)
-                graph_data = [g.to(self.device) for g in batch['graph_data']]
 
                 target_inp = target_ids[:, :-1]  # Exclude <eos>
                 target_real = target_ids[:, 1:]  # Exclude <sos>
 
-                outputs = self.model(graph_data, target_inp, input_ids)
-                loss = self.criterion(outputs.view(-1, outputs.size(-1)), target_real.reshape(-1))
+                outputs = self.model(input_ids, target_inp)
 
+                # Tính loss
+                loss = self.criterion(outputs.reshape(-1, outputs.size(-1)), target_real.reshape(-1))
                 total_loss += loss.item()
-                pbar.set_postfix(val_loss=loss.item())
 
-        return total_loss / len(self.val_loader)
+                # Tính accuracy
+                preds = torch.argmax(outputs, dim=-1)  # Lấy token dự đoán
+                mask = target_real != 0  # Bỏ qua pad_id
+                correct = (preds == target_real) & mask
+                total_correct += correct.sum().item()
+                total_tokens += mask.sum().item()
+
+                # Tính CER
+                preds_decoded = [self.data_manager.tokenizer.decode(pred.tolist()) for pred in preds]
+                truths_decoded = [self.data_manager.tokenizer.decode(t.tolist()) for t in target_real]
+                for pred, truth in zip(preds_decoded, truths_decoded):
+                    if truth.strip():  # Chỉ tính CER nếu ground truth không rỗng
+                        cer = jiwer.cer(truth, pred)
+                        cer_scores.append(cer)
+
+                pbar.set_postfix({
+                    'val_loss': loss.item(),
+                    'acc': total_correct / total_tokens if total_tokens > 0 else 0.0,
+                    'cer': sum(cer_scores) / len(cer_scores) if cer_scores else 0.0
+                })
+
+        avg_loss = total_loss / len(self.val_loader)
+        avg_acc = total_correct / total_tokens if total_tokens > 0 else 0.0
+        avg_cer = sum(cer_scores) / len(cer_scores) if cer_scores else 0.0
+        return avg_loss, avg_acc, avg_cer
 
     def load_best_model(self):
         if os.path.exists(self.ckpt_path):
@@ -170,12 +193,6 @@ class Trainer:
         self.model.eval()
         self.load_best_model()
 
-        # Tokenize và tạo graph từ equation
-        tokens = self.data_manager.tokenizer.tokenize_latex(equation)
-        tree = self.data_manager.parser.to_expr_tree(tokens)
-        graph_data = self.data_manager.parser.tree_to_graph(tree, self.data_manager.tokenizer.token_to_idx)
-        graph_data = [graph_data.to(self.device)]  # Đưa vào danh sách để khớp với forward
-        
         # Mã hóa input (equation + query)
         input_ids = self.data_manager.tokenizer.encode_for_test(equation, query)
         input_tensor = torch.tensor(input_ids, dtype=torch.long).unsqueeze(0).to(self.device)  # [1, seq_len]
@@ -187,7 +204,7 @@ class Trainer:
        
         with torch.no_grad():
             for _ in range(max_len - 1):
-                output = self.model(graph_data, tgt_input, input_tensor)
+                output = self.model(input_tensor, tgt_input)
 
                 # Get logits for the next token
                 next_token_logits = output[:, -1, :]  # Shape: [1, vocab_size]
@@ -214,7 +231,7 @@ if __name__ == '__main__':
         learning_rate=1e-4,
         weight_decay=1e-4,
     )
-    # trainer.train()
+    trainer.train()
     equation = "7 + 8 ="
     query = "cộng"
     solution = trainer.predict(equation, query)

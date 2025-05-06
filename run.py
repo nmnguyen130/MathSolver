@@ -8,10 +8,10 @@ MODULES = {
     '3': 'build.pre_render_dataset',
     '4': 'build.visualize_batch',
     '5': 'build.visualize_model',
+    '6': 'build.resize_image',
 
     # Shared Modules
-    '6': 'src.shared.preprocessing.latex_tokenizer',
-    '7': 'src.shared.preprocessing.math_tokenizer',
+    '7': 'src.shared.preprocessing.latex_tokenizer',
     '8': 'src.shared.preprocessing.inkml_loader',
 
     # Mathwriting modules
@@ -19,14 +19,15 @@ MODULES = {
 
     # Mathsolver modules
     '10': 'src.mathsolver.datamodule.create_dataset',
-    '11': 'src.mathsolver.datamodule.dataloader',
-    '12': 'src.mathsolver.scripts.trainer',
+    '11': 'src.mathsolver.preprocessing.tokenizer',
+    '12': 'src.mathsolver.datamodule.dataloader',
+    '13': 'src.mathsolver.scripts.trainer',
 
-    '13': 'src.image2latex.preprocessing.filter_error_image',
+    '14': 'src.image2latex.preprocessing.generate_latex_file',
 
     '15': 'src.image2latex.datamodule.dataloader',
     '16': 'src.image2latex.scripts.trainer',
-}
+    '17': 'src.image2latex.scripts.mw_trainer',}
 
 def print_modules():
     print("\nAvailable modules:")

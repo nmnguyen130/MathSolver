@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from src.mathwriting.datamodule.dataset import MathWritingDataset
-from src.shared.preprocessing.latex_tokenizer import LaTeXTokenizer
+from src.mathwriting.preprocessing.tokenizer import LaTeXTokenizer
 
 class MathWritingDataManager:
     def __init__(
@@ -30,12 +30,24 @@ class MathWritingDataManager:
 
         # Define image transformations
         self.train_transform = transforms.Compose([
-            transforms.RandomPerspective(distortion_scale=0.1, p=0.5, fill=255),
-            transforms.ToTensor(),  # Chuẩn hóa [0, 1]
+            transforms.RandomAffine(
+                degrees=1,
+                scale=(0.85, 1.0),
+                translate=(0, 0),
+                interpolation=transforms.InterpolationMode.BICUBIC,
+                fill=255
+            ),  # shift=0, rotate=±1°, scale=0.85~1
+            transforms.ColorJitter(brightness=0.05, contrast=0.2),  # brightness ~5%, contrast ~[-20%, 0%]
+            transforms.RandomApply([transforms.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.5))], p=0.2),
+            transforms.Grayscale(num_output_channels=3),
+            transforms.ToTensor(),
+            transforms.Normalize((0.7931, 0.7931, 0.7931), (0.1738, 0.1738, 0.1738))
         ])
 
         self.val_test_transform = transforms.Compose([
+            transforms.Grayscale(num_output_channels=3),
             transforms.ToTensor(),
+            transforms.Normalize((0.7931, 0.7931, 0.7931), (0.1738, 0.1738, 0.1738))
         ])
 
         # Initialize tokenizer and datasets
@@ -83,27 +95,28 @@ class MathWritingDataManager:
         return dataset
 
     def collate_fn(self, batch, img_size=(224, 224)):
-        """
-        Custom collate function to pad images and labels.
-        """
-        images, labels = zip(*batch)
+        images, latex_labels = zip(*batch)
         max_width, max_height = img_size
 
         # Create white background
         bg_value = 1.0
         src = torch.full((len(images), images[0].size(0), max_height, max_width),
-                         bg_value, dtype=images[0].dtype, device=images[0].device)
+                        bg_value, dtype=images[0].dtype, device=images[0].device)
 
         # Center and pad individual images
         for i, img in enumerate(images):
-            # Resize ảnh để vừa với max_height và max_width, giữ tỷ lệ
             _, img_h, img_w = img.size()
-            scale = min(max_height / img_h, max_width / img_w)
-            new_h = int(img_h * scale)
-            new_w = int(img_w * scale)
-            img = F.interpolate(img.unsqueeze(0), size=(new_h, new_w), mode='bilinear', align_corners=False).squeeze(0)
 
-            # Center và pad ảnh đã resize
+            # Chỉ resize nếu ảnh lớn hơn max_height hoặc max_width
+            if img_h > max_height or img_w > max_width:
+                scale = min(max_height / img_h, max_width / img_w)
+                new_h = int(img_h * scale)
+                new_w = int(img_w * scale)
+                img = F.interpolate(img.unsqueeze(0), size=(new_h, new_w), mode='bilinear', align_corners=False).squeeze(0)
+            else:
+                new_h, new_w = img_h, img_w  # Giữ nguyên kích thước nếu ảnh nhỏ
+
+            # Center và pad ảnh
             pad_h_start = (max_height - new_h) // 2
             pad_w_start = (max_width - new_w) // 2
             pad_h_end = pad_h_start + new_h
@@ -112,9 +125,9 @@ class MathWritingDataManager:
 
         # Pad label sequences
         pad_id = self.tokenizer.token_to_idx['<pad>']
-        tgt = pad_sequence(labels, batch_first=True, padding_value=pad_id).long()
+        tgt = pad_sequence(latex_labels, batch_first=True, padding_value=pad_id).long()
 
-        return src, tgt, None
+        return src, tgt
     
     def get_dataloader(self, dataset_type: str):
         dataset_map = {

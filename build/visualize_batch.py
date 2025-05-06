@@ -4,8 +4,10 @@ import matplotlib.pyplot as plt
 from torchvision.utils import make_grid
 
 from src.image2latex.datamodule.dataloader import ImageLatexDataManager
+from src.image2latex.datamodule.mw_dataloader import MWImageLatexDataManager
+from src.mathwriting.datamodule.dataloader import MathWritingDataManager
 
-DATA_DIR = "./data/im2latex/"
+DATA_DIR = "./data/mathwriting-2024/"
 BATCH_SIZE = 16 # Number of samples to visualize
 NUM_WORKERS = 0 # Keep this 0 for visualization script unless needed
 
@@ -20,7 +22,7 @@ def visualize_batch():
     try:
         # 1. Instantiate the Data Manager
         print("Instantiating DataManager...")
-        data_manager = ImageLatexDataManager(
+        data_manager = MathWritingDataManager(
             data_dir=DATA_DIR,
             batch_size=BATCH_SIZE,
             num_workers=NUM_WORKERS

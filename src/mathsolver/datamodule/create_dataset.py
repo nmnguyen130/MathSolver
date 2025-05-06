@@ -10,11 +10,6 @@ from enum import Enum
 class ProblemType(Enum):
     BASIC_ARITHMETIC = "basic_arithmetic"
     LINEAR = "linear"
-    QUADRATIC = "quadratic"
-    INEQUALITY = "inequality"
-    SYSTEM = "system"
-    DERIVATIVE = "derivative"
-    EXPONENTIAL = "exponential"
 
 class MathDatasetGenerator:
     """Class để tạo dataset toán học với các bài toán đa dạng và chuẩn hóa số."""
@@ -24,36 +19,36 @@ class MathDatasetGenerator:
         self.query_templates: Dict[ProblemType, List[str]] = {
             ProblemType.BASIC_ARITHMETIC: {
                 '+': [
-                    "Tính tổng của hai số",
-                    "Cộng hai số, kết quả là bao nhiêu?",
+                    "Tính tổng của hai số {a} và {b}",
+                    "Cộng {a} với {b}, kết quả là bao nhiêu?",
                     "Tổng của {a} và {b} là gì?",
-                    "Tìm giá trị của phép cộng"
+                    "Thực hiện phép cộng {a} + {b}"
                 ],
                 '-': [
-                    "Tính hiệu của hai số",
-                    "Trừ hai số, kết quả là bao nhiêu?",
+                    "Tính hiệu của {a} và {b}",
+                    "Trừ {b} từ {a}, kết quả là bao nhiêu?",
                     "Hiệu của {a} và {b} là gì?",
-                    "Tìm giá trị của phép trừ"
+                    "Thực hiện phép trừ {a} - {b}"
                 ],
                 '*': [
-                    "Tính tích của hai số",
-                    "Nhân hai số, kết quả là bao nhiêu?",
+                    "Tính tích của {a} và {b}",
+                    "Nhân {a} với {b}, kết quả là bao nhiêu?",
                     "Tích của {a} và {b} là gì?",
-                    "Tìm giá trị của phép nhân"
+                    "Thực hiện phép nhân {a} * {b}"
                 ],
                 '/': [
-                    "Tính thương của hai số",
-                    "Chia hai số, kết quả là bao nhiêu?",
+                    "Tính thương của {a} và {b}",
+                    "Chia {a} cho {b}, kết quả là bao nhiêu?",
                     "Thương của {a} và {b} là gì?",
-                    "Tìm giá trị của phép chia"
+                    "Thực hiện phép chia {a} / {b}"
                 ]
             },
-            ProblemType.LINEAR: ["Giải tìm x", "Tìm x", "x = ?", "x bằng bao nhiêu?"],
-            ProblemType.QUADRATIC: ["Giải phương trình", "Tìm nghiệm x", "x = ?", "Tìm các nghiệm"],
-            ProblemType.INEQUALITY: ["Giải bất phương trình", "Tìm tập nghiệm", "x thỏa mãn điều kiện gì?"],
-            ProblemType.SYSTEM: ["Giải hệ phương trình", "Tìm x và y", "(x, y) = ?"],
-            ProblemType.DERIVATIVE: ["Tính đạo hàm", "Tìm f'(x)", "Đạo hàm của hàm số là gì?"],
-            ProblemType.EXPONENTIAL: ["Giải phương trình mũ", "Tìm x", "x = ?"],
+            ProblemType.LINEAR: [
+                "Giải phương trình {latex_eq}",
+                "Tìm x sao cho {latex_eq}",
+                "Xác định giá trị của x trong {latex_eq}",
+                "Tìm nghiệm của {latex_eq}"
+            ]
         }
         self.generators = {
             ProblemType.BASIC_ARITHMETIC: [
@@ -65,20 +60,10 @@ class MathDatasetGenerator:
                 self._generate_nested_expression,
             ],
             ProblemType.LINEAR: [self._generate_linear_equation],
-            # ProblemType.QUADRATIC: [self._generate_quadratic_equation],
-            # ProblemType.INEQUALITY: [self._generate_inequality],
-            # ProblemType.SYSTEM: [self._generate_system_of_equations],
-            # ProblemType.DERIVATIVE: [self._generate_derivative],
-            # ProblemType.EXPONENTIAL: [self._generate_exponential_equation],
         }
         self.weights = {
             ProblemType.BASIC_ARITHMETIC: 0.7,  # 70% cơ bản
             ProblemType.LINEAR: 0.3,
-            # ProblemType.QUADRATIC: 0.08,
-            # ProblemType.INEQUALITY: 0.05,
-            # ProblemType.SYSTEM: 0.05,
-            # ProblemType.DERIVATIVE: 0.03,
-            # ProblemType.EXPONENTIAL: 0.04,
         }
         self.fixed_cases = [
             # Phép cộng
@@ -148,13 +133,14 @@ class MathDatasetGenerator:
         ]
 
     def _random_query(self, problem_type: ProblemType, op: str = None,
-                      a: Optional[int] = None, b: Optional[int] = None) -> str:
+                      a: Optional[int] = None, b: Optional[int] = None, latex_eq: str = None) -> str:
         if problem_type == ProblemType.BASIC_ARITHMETIC and op:
             query = random.choice(self.query_templates[problem_type][op])
-            if a is not None and b is not None and "{a}" in query:
-                return query.format(a=a, b=b)
-            return query
-        return random.choice(self.query_templates[problem_type])
+            return query.format(a=a, b=b)
+        elif problem_type == ProblemType.LINEAR and latex_eq:
+            query = random.choice(self.query_templates[problem_type])
+            return query.format(latex_eq=latex_eq)
+        return "Tính giá trị biểu thức"
 
     def _format_number(self, num) -> str:
         """Chuẩn hóa số thành chuỗi: số thập phân (làm tròn) hoặc phân số đơn giản."""
@@ -171,7 +157,7 @@ class MathDatasetGenerator:
                 return f"\\frac{{{num}}}{{{den}}}"
             if num.is_Float:
                 float_val = float(num)
-                return f"{round(float_val, 4):.4f}".rstrip('0').rstrip('.')
+                return f"{round(float_val, 2):.2f}".rstrip('0').rstrip('.')
             return sp.latex(num)
         except (TypeError, ValueError):
             return str(num)
@@ -183,7 +169,7 @@ class MathDatasetGenerator:
             result = a + b
             latex_eq = f"{a} + {b} ="
             steps = self._build_steps(latex_eq, f"{a} + {b} = {result}", result, detailed, op='+', a=a, b=b)
-            return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, op='+', a=a, b=b)
+            return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, self._format_number(result), op='+', a=a, b=b)
         except Exception:
             return None
     
@@ -194,7 +180,7 @@ class MathDatasetGenerator:
             result = a - b
             latex_eq = f"{a} - {b} ="
             steps = self._build_steps(latex_eq, f"{a} - {b} = {result}", result, detailed, op='-', a=a, b=b)
-            return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, op='-', a=a, b=b)
+            return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, self._format_number(result), op='-', a=a, b=b)
         except Exception:
             return None
 
@@ -205,7 +191,7 @@ class MathDatasetGenerator:
             result = a * b
             latex_eq = f"{a} \\times {b} ="
             steps = self._build_steps(latex_eq, f"{a} \\times {b} = {result}", result, detailed, op='*', a=a, b=b)
-            return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, op='*', a=a, b=b)
+            return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, self._format_number(result), op='*', a=a, b=b)
         except Exception:
             return None
 
@@ -219,7 +205,7 @@ class MathDatasetGenerator:
             a = b * result
             latex_eq = f"{a} \\div {b} ="
             steps = self._build_steps(latex_eq, f"{a} \\div {b} = {result}", result, detailed, op='/', a=a, b=b)
-            return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, op='/', a=a, b=b)
+            return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, self._format_number(result), op='/', a=a, b=b)
         except Exception:
             return None
         
@@ -227,18 +213,17 @@ class MathDatasetGenerator:
         """Biểu thức nhiều bước không ngoặc: a + b * c - d"""
         try:
             a, b, c, d = [random.randint(1, 10) for _ in range(4)]
-            expr = f"{a} + {b} * {c} - {d}"
-            result = eval(expr)
+            result = a + b * c - d
             latex_expr = f"{a} + {b} \\times {c} - {d}"
             steps = [
                 f"Biểu thức: \\({latex_expr}\\)",
-                f"Theo thứ tự ưu tiên: \\({b} \\times {c} = {b * c}\\)",
-                f"Tiếp theo: \\({a} + {b * c} = {a + b * c}\\)",
-                f"Cuối cùng: \\({a + b * c} - {d} = {result}\\)"
+                f"Thực hiện phép nhân trước: \\({b} \\times {c} = {b * c}\\)",
+                f"Thực hiện phép cộng: \\({a} + {b * c} = {a + b * c}\\)",
+                f"Thực hiện phép trừ: \\({a + b * c} - {d} = {result}\\)"
             ]
             if not detailed:
                 steps = [steps[0], steps[-1]]
-            return self._build_output(latex_expr, ProblemType.BASIC_ARITHMETIC, steps)
+            return self._build_output(latex_expr, ProblemType.BASIC_ARITHMETIC, steps, self._format_number(result))
         except Exception:
             return None
         
@@ -250,25 +235,29 @@ class MathDatasetGenerator:
             op2 = random.choice(['+', '-', '*', '/'])
             latex_op_map = {'*': '\\times', '/': '\\div'}
 
-            latex_expr = f"({a} {op1} {b}) {latex_op_map[op2]} ({c} - {d})"
-            text_expr = f"({a} {op1} {b}) {op2} ({c} - {d})"
-
-            expr = sp.simplify(text_expr)
-            result = float(expr) if expr.is_number else sp.simplify(expr)
-
+            latex_expr = f"({a} {op1} {b}) {latex_op_map.get(op2, op2)} ({c} - {d})"
             val1 = a + b if op1 == '+' else a - b
             val2 = c - d
-            
+            if op2 == '+':
+                result = val1 + val2
+            elif op2 == '-':
+                result = val1 - val2
+            elif op2 == '*':
+                result = val1 * val2
+            else:  # /
+                if val2 == 0:
+                    return None  # Tránh chia cho 0
+                result = val1 / val2
+
             steps = [
                 f"Biểu thức: \\({latex_expr}\\)",
-                f"Tính ngoặc 1: \\({a} {op1} {b} = {val1}\\)",
-                f"Tính ngoặc 2: \\({c} - {d} = {val2}\\)",
-                f"Thực hiện phép {op2}: \\({val1} {latex_op_map[op2]} {val2} = {self._format_number(result)}\\)"
+                f"Tính ngoặc đầu tiên: \\({a} {op1} {b} = {val1}\\)",
+                f"Tính ngoặc thứ hai: \\({c} - {d} = {val2}\\)",
+                f"Thực hiện phép {op2}: \\({val1} {latex_op_map.get(op2, op2)} {val2} = {self._format_number(result)}\\)"
             ]
             if not detailed:
                 steps = [steps[0], steps[-1]]
-            
-            return self._build_output(latex_expr, ProblemType.BASIC_ARITHMETIC, steps)
+            return self._build_output(latex_expr, ProblemType.BASIC_ARITHMETIC, steps, self._format_number(result))
         except Exception:
             return None
 
@@ -277,186 +266,106 @@ class MathDatasetGenerator:
             a, b, c = self._generate_numbers(level, max_val=10, non_zero=True)
             d = random.randint(-5, 5)
             k = random.randint(1, 5) if level != "easy" else 1
-            form = random.choice(["standard", "distributive", "fraction", "subtraction"])
+            form = random.choice(["standard", "distributive", "fraction", "subtraction", "no_solution", "infinite_solutions", "both_sides"])
 
             latex_eq = None
+            answer = None
+            steps = []
             if form == "standard":  # ax + b = c
                 eq = sp.Eq(a * self.x + b, c)
-                latex_eq = f"{a} {sp.latex(self.x)} + {b} = {c}"
+                latex_eq = f"{a}x + {b} = {c}"
+                solution = sp.solve(eq, self.x)
+                answer = f"x = {self._format_number(solution[0])}" if solution else "Không có nghiệm"
                 steps = [
-                    f"Phương trình: \\({sp.latex(eq)}\\)",
-                    f"Chuyển vế: \\({sp.latex(a * self.x)} = {sp.latex(c - b)}\\)",
-                    f"Chia hai vế cho {a}: \\(x = \\frac{{{sp.latex(c - b)}}}{{{a}}}\\)",
-                    f"Nghiệm: \\(x = {self._format_number(sp.solve(eq, self.x)[0])}\\)"
+                    f"Phương trình: \\({latex_eq}\\)",
+                    f"Chuyển {b} sang vế phải: \\({a}x = {c - b}\\)",
+                    f"Chia hai vế cho {a}: \\(x = \\frac{{{c - b}}}{{{a}}}\\)",
+                    f"Kết quả: \\({answer}\\)"
                 ]
             elif form == "distributive":  # a(x + d) = c
                 eq = sp.Eq(a * (self.x + d), c)
-                latex_eq = f"{a} ({sp.latex(self.x)} + {d}) = {c}"
-                expanded = f"{sp.latex(a * self.x)} + {a} \\times {d}"
+                latex_eq = f"{a}(x + {d}) = {c}"
+                solution = sp.solve(eq, self.x)
+                answer = f"x = {self._format_number(solution[0])}" if solution else "Không có nghiệm"
                 steps = [
                     f"Phương trình: \\({latex_eq}\\)",
-                    f"Mở ngoặc: \\({expanded} = {c}\\)",
-                    f"Tính toán: \\({sp.latex(a * self.x + a * d)} = {c}\\)",
-                    f"Chuyển vế: \\({sp.latex(a * self.x)} = {sp.latex(c - a * d)}\\)",
-                    f"Chia hai vế cho {a}: \\(x = \\frac{{{sp.latex(c - a * d)}}}{{{a}}}\\)",
-                    f"Nghiệm: \\(x = {self._format_number(sp.solve(eq, self.x)[0])}\\)"
+                    f"Mở ngoặc: \\({a}x + {a * d} = {c}\\)",
+                    f"Chuyển {a * d} sang vế phải: \\({a}x = {c - a * d}\\)",
+                    f"Chia hai vế cho {a}: \\(x = \\frac{{{c - a * d}}}{{{a}}}\\)",
+                    f"Kết quả: \\({answer}\\)"
                 ]
             elif form == "fraction":  # (ax + b)/k = c
                 eq = sp.Eq((a * self.x + b) / k, c)
-                latex_eq = f"\\frac{{{sp.latex(a * self.x + b)}}}{{{k}}} = {c}"
-                expanded = f"{sp.latex(a * self.x + b)} = {c} \\times {k}"
+                latex_eq = f"\\frac{{{a}x + {b}}}{{{k}}} = {c}"
+                solution = sp.solve(eq, self.x)
+                answer = f"x = {self._format_number(solution[0])}" if solution else "Không có nghiệm"
                 steps = [
                     f"Phương trình: \\({latex_eq}\\)",
-                    f"Nhân hai vế với {k}: \\({expanded}\\)",
-                    f"Tính toán: \\({sp.latex(a * self.x + b)} = {c * k}\\)",
-                    f"Chuyển vế: \\({sp.latex(a * self.x)} = {sp.latex(k * c - b)}\\)",
-                    f"Chia hai vế cho {a}: \\(x = \\frac{{{sp.latex(k * c - b)}}}{{{a}}}\\)",
-                    f"Nghiệm: \\(x = {self._format_number(sp.solve(eq, self.x)[0])}\\)"
+                    f"Nhân hai vế với {k}: \\({a}x + {b} = {c * k}\\)",
+                    f"Chuyển {b} sang vế phải: \\({a}x = {c * k - b}\\)",
+                    f"Chia hai vế cho {a}: \\(x = \\frac{{{c * k - b}}}{{{a}}}\\)",
+                    f"Kết quả: \\({answer}\\)"
                 ]
-            else:  # ax = c - b
+            elif form == "subtraction":  # ax = c - b
                 eq = sp.Eq(a * self.x, c - b)
-                latex_eq = f"{a} {sp.latex(self.x)} = {c} - {b}"
+                latex_eq = f"{a}x = {c - b}"
+                solution = sp.solve(eq, self.x)
+                answer = f"x = {self._format_number(solution[0])}" if solution else "Không có nghiệm"
                 steps = [
                     f"Phương trình: \\({latex_eq}\\)",
-                    f"Rút gọn vế phải: \\({sp.latex(a * self.x)} = {c - b}\\)",
                     f"Chia hai vế cho {a}: \\(x = \\frac{{{c - b}}}{{{a}}}\\)",
-                    f"Nghiệm: \\(x = {self._format_number(sp.solve(eq, self.x)[0])}\\)"
+                    f"Kết quả: \\({answer}\\)"
+                ]
+            elif form == "no_solution":  # ax + b = ax + c, b != c
+                eq = sp.Eq(a * self.x + b, a * self.x + c)
+                latex_eq = f"{a}x + {b} = {a}x + {c}"
+                answer = "Không có nghiệm"
+                steps = [
+                    f"Phương trình: \\({latex_eq}\\)",
+                    f"Chuyển {a}x sang vế trái: \\({b} = {c}\\)",
+                    f"Kết luận: Vì {b} \\neq {c}, phương trình không có nghiệm",
+                    f"Kết quả: \\({answer}\\)"
+                ]
+            elif form == "infinite_solutions":  # ax + b = ax + b
+                eq = sp.Eq(a * self.x + b, a * self.x + b)
+                latex_eq = f"{a}x + {b} = {a}x + {b}"
+                answer = "Vô số nghiệm"
+                steps = [
+                    f"Phương trình: \\({latex_eq}\\)",
+                    f"Chuyển {a}x + {b} sang vế trái: \\(0 = 0\\)",
+                    f"Kết luận: Phương trình đúng với mọi x",
+                    f"Kết quả: \\({answer}\\)"
+                ]
+            elif form == "both_sides":  # ax + b = cx + d
+                c2 = random.randint(-10, 10)  # Hệ số cho x ở vế phải
+                while c2 == a:  # Tránh trường hợp vô số nghiệm
+                    c2 = random.randint(-10, 10)
+                eq = sp.Eq(a * self.x + b, c2 * self.x + d)
+                latex_eq = f"{a}x + {b} = {c2}x + {d}"
+                solution = sp.solve(eq, self.x)
+                answer = f"x = {self._format_number(solution[0])}" if solution else "Không có nghiệm"
+                steps = [
+                    f"Phương trình: \\({latex_eq}\\)",
+                    f"Chuyển {c2}x sang vế trái và {b} sang vế phải: \\({a}x - {c2}x = {d} - {b}\\)",
+                    f"Rút gọn: \\({a - c2}x = {d - b}\\)",
+                    f"Chia hai vế cho {a - c2}: \\(x = \\frac{{{d - b}}}{{{a - c2}}}\\)",
+                    f"Kết quả: \\({answer}\\)"
                 ]
 
             if not detailed:
                 steps = [steps[0], steps[-1]]
-            return self._build_output(latex_eq, ProblemType.LINEAR, steps)
+            return self._build_output(latex_eq, ProblemType.LINEAR, steps, answer, c=c)
         except Exception:
             return None
 
-    def _generate_quadratic_equation(self, detailed: bool = True, level: str = "easy") -> Optional[Dict]:
-        """Tạo bài toán phương trình bậc hai."""
-        try:
-            a, b, c = self._generate_numbers(level, max_val=5, non_zero=True)
-            eq = sp.Eq(a * self.x**2 + b * self.x + c, 0)
-            latex_eq = sp.latex(eq)
-            solutions = sp.solve(eq, self.x)
-            delta = b**2 - 4 * a * c
-            steps = [
-                f"Phương trình: \\({latex_eq}\\)",
-                f"Delta: \\(\\Delta = {b}^2 - 4 \\cdot {a} \\cdot {c} = {delta}\\)"
-            ]
-            if detailed:
-                steps.extend(self._quadratic_steps(a, b, delta, solutions))
-            else:
-                steps.append(f"Nghiệm: \\({' hoặc '.join(self._format_number(sol) for sol in solutions) if solutions else 'Không có nghiệm thực'}\\)")
-            return self._build_output(latex_eq, ProblemType.QUADRATIC, steps)
-        except Exception:
-            return None
-
-    def _generate_inequality(self, detailed: bool = True, level: str = "easy") -> Optional[Dict]:
-        """Tạo bài toán bất phương trình."""
-        try:
-            a, b, c = self._generate_numbers(level, max_val=10, non_zero=True)
-            op = random.choice(['>', '<', '>=', '<='])
-            ineq = {'>': a * self.x + b > c, '<': a * self.x + b < c,
-                    '>=': a * self.x + b >= c, '<=': a * self.x + b <= c}[op]
-            latex_ineq = sp.latex(ineq)
-            solution = sp.solve(ineq, self.x)
-            if not solution:
-                return self._build_output(latex_ineq, ProblemType.INEQUALITY, [f"Bất phương trình: \\({latex_ineq}\\)", "Không có nghiệm"])
-            
-            solution_str = sp.latex(solution)
-            steps = [
-                f"Bất phương trình: \\({latex_ineq}\\)",
-                f"Cách ly {a}x: \\({sp.latex(a * self.x)} {op} {sp.latex(c - b)}\\)",
-                f"Chia cả hai vế cho {a}{' (đổi chiều bất phương trình)' if a < 0 else ''}: "
-                f"\\(x {'<' if (op == '>' and a < 0) or (op == '<' and a > 0) else '>'} \\frac{{{sp.latex(c - b)}}}{{{a}}}\\)" if op in ['>', '<'] else
-                f"\\(x {'<=' if (op == '>=' and a < 0) or (op == '<=' and a > 0) else '>='} \\frac{{{sp.latex(c - b)}}}{{{a}}}\\)",
-                f"Tập nghiệm: \\({solution_str}\\)"
-            ] if detailed else [f"Bất phương trình: \\({latex_ineq}\\)", f"Tập nghiệm: \\({solution_str}\\)"]
-            return self._build_output(latex_ineq, ProblemType.INEQUALITY, steps)
-        except Exception:
-            return None
-
-    def _generate_system_of_equations(self, detailed: bool = True, level: str = "easy") -> Optional[Dict]:
-        """Tạo bài toán hệ phương trình."""
-        try:
-            max_attempts = 10
-            for _ in range(max_attempts):
-                a1, b1, c1, a2, b2, c2 = [random.randint(-5, 5) for _ in range(6)]
-                if a1 * b2 != a2 * b1:
-                    break
-            else:
-                return None
-            
-            eq1 = sp.Eq(a1 * self.x + b1 * self.y, c1)
-            eq2 = sp.Eq(a2 * self.x + b2 * self.y, c2)
-            latex_eq = f"\\begin{{cases}} {sp.latex(eq1)} \\\\ {sp.latex(eq2)} \\end{{cases}}"
-            solutions = sp.solve([eq1, eq2], (self.x, self.y))
-            if not solutions:
-                return self._build_output(latex_eq, ProblemType.SYSTEM, [f"Hệ phương trình: \\({latex_eq}\\)", "Không có nghiệm"])
-            
-            x_sol, y_sol = self._format_number(solutions[self.x]), self._format_number(solutions[self.y])
-            steps = [
-                f"Hệ phương trình: \\({latex_eq}\\)",
-                "Sử dụng phương pháp thế hoặc cộng trừ",
-                f"Tìm x: \\(x = {x_sol}\\)",
-                f"Tìm y: \\(y = {y_sol}\\)",
-                f"Nghiệm: \\((x, y) = ({x_sol}, {y_sol})\\)"
-            ] if detailed else [f"Hệ phương trình: \\({latex_eq}\\)", f"Nghiệm: \\((x, y) = ({x_sol}, {y_sol})\\)"]
-            return self._build_output(latex_eq, ProblemType.SYSTEM, steps)
-        except Exception:
-            return None
-
-    def _generate_derivative(self, detailed: bool = True, level: str = "easy") -> Optional[Dict]:
-        """Tạo bài toán đạo hàm."""
-        try:
-            a, b, c = self._generate_numbers(level, max_val=5)
-            func = a * self.x**2 + b * self.x + c
-            latex_func = sp.latex(func)
-            deriv = sp.diff(func, self.x)
-            steps = [
-                f"Hàm số: \\(f(x) = {latex_func}\\)",
-                f"Đạo hàm: \\(f'(x) = {sp.latex(deriv)}\\)"
-            ]
-            if detailed:
-                steps.insert(1, "Áp dụng quy tắc lấy đạo hàm")
-                steps.extend([
-                    f"Đạo hàm của \\({a}x^{{2}}\\): \\({2*a}x\\)",
-                    f"Đạo hàm của {b}x: \\({b}\\)",
-                    f"Đạo hàm của {c}: \\(0\\)"
-                ])
-            return self._build_output(latex_func, ProblemType.DERIVATIVE, steps)
-        except Exception:
-            return None
-
-    def _generate_exponential_equation(self, detailed: bool = True, level: str = "easy") -> Optional[Dict]:
-        """Tạo bài toán phương trình mũ."""
-        try:
-            a, b = random.randint(1, 5), random.randint(1, 10)
-            base = random.choice([2, 3, 5])
-            eq = sp.Eq(a * base**self.x, b)
-            latex_eq = sp.latex(eq)
-            solutions = sp.solve(eq, self.x)
-            if not solutions:
-                return self._build_output(latex_eq, ProblemType.EXPONENTIAL, [f"Phương trình: \\({latex_eq}\\)", "Không có nghiệm"])
-            
-            solution_str = self._format_number(solutions[0])
-            steps = [
-                f"Phương trình: \\({latex_eq}\\)",
-                f"Cách ly {base}^x: \\({base}^{{x}} = \\frac{{{b}}}{{{a}}}\\)",
-                f"Áp dụng logarit: \\(x = \\log_{{{base}}} \\left( \\frac{{{b}}}{{{a}}} \\right)\\)",
-                f"Nghiệm: \\(x = {solution_str}\\)"
-            ] if detailed else [f"Phương trình: \\({latex_eq}\\)", f"Nghiệm: \\(x = {solution_str}\\)"]
-            return self._build_output(latex_eq, ProblemType.EXPONENTIAL, steps)
-        except Exception:
-            return None
-        
     def _generate_numbers(self, level: str, max_val: int = 50, 
                           non_zero: bool = False, allow_negative: bool = True) -> Tuple[int, ...]:
-        """Tạo các số ngẫu nhiên dựa trên mức độ khó."""
         def get_number():
             if level == "easy":
-                low, high = (-max_val, max_val) if allow_negative else (0, max_val)
+                low, high = (-max_val, max_val) if allow_negative else (1, max_val)
                 return random.randint(low, high)
             elif level == "medium":
-                low, high = (-2 * max_val, 2 * max_val) if allow_negative else (0, 2 * max_val)
+                low, high = (-2 * max_val, 2 * max_val) if allow_negative else (1, 2 * max_val)
                 return random.randint(low, high)
             elif level == "hard":
                 return round(random.uniform(-max_val, max_val), 2) if allow_negative else round(random.uniform(1, max_val), 2)
@@ -481,38 +390,20 @@ class MathDatasetGenerator:
 
         if detailed:
             if op == '+':
-                if a < 0 or b < 0:
-                    steps = [
-                        f"Cộng với số âm: \\({formatted_a} + {formatted_b} = {formatted_result}\\)",
-                        f"Kết quả phép cộng: \\({formatted_result}\\)"
-                    ]
-                else:
-                    steps = [
-                        f"Thực hiện phép cộng: \\({formatted_a} + {formatted_b} = {formatted_result}\\)",
-                        f"Kết quả: \\({formatted_result}\\)"
-                    ]
+                steps = [
+                    f"Thực hiện phép cộng: \\({formatted_a} + {formatted_b} = {formatted_result}\\)",
+                    f"Kết quả: \\({formatted_result}\\)"
+                ]
             elif op == '-':
-                if a < 0 or b < 0:
-                    steps = [
-                        f"Trừ với số âm: \\({formatted_a} - {formatted_b} = {formatted_result}\\)",
-                        f"Kết quả phép trừ: \\({formatted_result}\\)"
-                    ]
-                else:
-                    steps = [
-                        f"Thực hiện phép trừ: \\({formatted_a} - {formatted_b} = {formatted_result}\\)",
-                        f"Kết quả: \\({formatted_result}\\)"
-                    ]
+                steps = [
+                    f"Thực hiện phép trừ: \\({formatted_a} - {formatted_b} = {formatted_result}\\)",
+                    f"Kết quả: \\({formatted_result}\\)"
+                ]
             elif op == '*':
-                if a < 0 or b < 0:
-                    steps = [
-                        f"Nhân với số âm: \\({formatted_a} \\times {formatted_b} = {formatted_result}\\)",
-                        f"Kết quả phép nhân: \\({formatted_result}\\)"
-                    ]
-                else:
-                    steps = [
-                        f"Thực hiện phép nhân: \\({formatted_a} \\times {formatted_b} = {formatted_result}\\)",
-                        f"Kết quả: \\({formatted_result}\\)"
-                    ]
+                steps = [
+                    f"Thực hiện phép nhân: \\({formatted_a} \\times {formatted_b} = {formatted_result}\\)",
+                    f"Kết quả: \\({formatted_result}\\)"
+                ]
             else:  # /
                 steps = [
                     f"Thực hiện phép chia: \\({formatted_a} \\div {formatted_b} = {formatted_result}\\)",
@@ -522,14 +413,15 @@ class MathDatasetGenerator:
             steps = [f"Bài toán: \\({latex_eq}\\)", f"Kết quả: \\({formatted_result}\\)"]
         return steps
 
-    def _build_output(self, latex_eq: str, problem_type: ProblemType, steps: List[str],
-                      op: str = None, a: Optional[int] = None, b: Optional[int] = None) -> Dict:
-        """Tạo cấu trúc dữ liệu đầu ra thống nhất."""
+    def _build_output(self, latex_eq: str, problem_type: ProblemType, steps: List[str], answer: str,
+                       op: str = None, a: Optional[int] = None, b: Optional[int] = None, c: Optional[int] = None) -> Dict:
+        query = self._random_query(problem_type, op, a, b, latex_eq)
         return {
             "problem_type": problem_type.value,
             "latex_equation": latex_eq,
-            "query": self._random_query(problem_type, op, a, b),
-            "solution_steps": steps
+            "query": query,
+            "solution_steps": steps,
+            "answer": answer
         }
     
     def _generate_fixed_basic_cases(self, detailed: bool = True, case_idx: int = None) -> Optional[Dict]:
@@ -541,7 +433,7 @@ class MathDatasetGenerator:
         op = case['op'].replace('\\times', '*').replace('\\div', '/')
 
         try:
-            # Chuyển biểu thức LaTeX sang dạng text để sympy phân tích
+            # Chuyển biểu thức LaTeX sang dạng text
             expr_text = case['eq'].replace('\\times', '*').replace('\\div', '/')
             expr = sp.sympify(expr_text, evaluate=False)
             if isinstance(expr, (sp.Add, sp.Mul)):
@@ -554,43 +446,32 @@ class MathDatasetGenerator:
                 elif op == '*':
                     b = args[1]
                 else:  # op == '/'
-                    # Phép chia: args[1] là x**(-1), lấy nghịch đảo để được b
                     if isinstance(args[1], sp.Pow) and args[1].args[1] == -1:
                         b = args[1].args[0]  # Lấy số bị chia
                     else:
                         b = args[1]
             else:
-                # Trường hợp lồng nhau, ví dụ: (2 + 3) * 2
-                a = sp.sympify(expr_text.split(op)[0].strip())
-                b = sp.sympify(expr_text.split(op)[1].strip())
-        except Exception:
-            # Fallback: Trích xuất thủ công nếu sympy thất bại
-            parts = expr_text.split(op)
-            a = sp.sympify(parts[0].strip())
-            b = sp.sympify(parts[1].strip())
+                # Fallback: Tách thủ công cho các trường hợp phức tạp
+                parts = expr_text.split(op, 1)  # Tách tại toán tử đầu tiên
+                a = sp.sympify(parts[0].strip())
+                b = sp.sympify(parts[1].strip())
+                if op == '-':
+                    b = -b  # Điều chỉnh cho phép trừ
 
-        calc_step = f"{case['eq']} = {self._format_number(case['result'])}"
-        steps = self._build_steps(latex_eq, calc_step, case['result'], detailed, op=op, a=a, b=b)
-        return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, op=op, a=a, b=b)
-
-    def _quadratic_steps(self, a: int, b: int, delta: int, solutions: List[sp.Expr]) -> List[str]:
-        """Tạo các bước giải chi tiết cho phương trình bậc hai."""
-        if delta > 0:
-            sol1, sol2 = self._format_number(solutions[0]), self._format_number(solutions[1])
-            return [
-                f"Delta dương, có hai nghiệm thực",
-                f"Nghiệm: \\(x = \\frac{{-{b} \\pm \\sqrt{{{delta}}}}}{{2 \\cdot {a}}}\\)",
-                f"Nghiệm thứ nhất: \\(x_1 = {sol1}\\)",
-                f"Nghiệm thứ hai: \\(x_2 = {sol2}\\)"
-            ]
-        elif delta == 0:
-            sol = self._format_number(solutions[0])
-            return [
-                f"Delta bằng 0, có nghiệm kép",
-                f"Nghiệm: \\(x = \\frac{{-{b}}}{{2 \\cdot {a}}}\\)",
-                f"Nghiệm: \\(x = {sol}\\)"
-            ]
-        return ["Delta âm, không có nghiệm thực"]
+            calc_step = f"{case['eq']} = {self._format_number(case['result'])}"
+            steps = self._build_steps(latex_eq, calc_step, case['result'], detailed, op=op, a=a, b=b)
+            return self._build_output(
+                latex_eq=latex_eq,
+                problem_type=ProblemType.BASIC_ARITHMETIC,
+                steps=steps,
+                answer=self._format_number(case['result']),
+                op=op,
+                a=a,
+                b=b
+            )
+        except Exception as e:
+            print(f"Error in fixed case {case['eq']}: {e}")
+            return None
 
     def generate_sample(self, sample_idx: int) -> Optional[Dict]:
         try:
@@ -634,11 +515,6 @@ class MathDatasetGenerator:
                 attempts += batch_size
                 print(f"Generated {len(dataset)} unique problems after {attempts} attempts")
 
-                # Lưu checkpoint mỗi 1000 bài
-                # if len(dataset) % 1000 == 0:
-                #     with open(output_file + ".checkpoint", 'w', encoding='utf-8') as f:
-                #         json.dump(dataset[:num_samples], f, ensure_ascii=False, indent=2)
-
         # Cắt dataset nếu vượt quá num_samples
         dataset = dataset[:num_samples]
         
@@ -648,19 +524,34 @@ class MathDatasetGenerator:
         
         print(f"Final dataset: {len(dataset)} unique problems")
 
-def validate_dataset(file_path: str) -> None:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            dataset = json.load(f)
-        
-        problems = [sample["latex_equation"] for sample in dataset]
-        unique_problems = set(problems)
-        print(f"Total problems: {len(problems)}")
-        print(f"Unique problems: {len(unique_problems)}")
-        if len(unique_problems) < len(problems):
-            print(f"Found {len(problems) - len(unique_problems)} duplicates")
+    def validate_dataset(self, file_path: str) -> None:
+            """Kiểm tra dataset: trùng lặp và tính đúng đắn."""
+            with open(file_path, 'r', encoding='utf-8') as f:
+                dataset = json.load(f)
+            
+            problems = [sample["latex_equation"] for sample in dataset]
+            unique_problems = set(problems)
+            print(f"Total problems: {len(problems)}")
+            print(f"Unique problems: {len(unique_problems)}")
+            if len(unique_problems) < len(problems):
+                print(f"Found {len(problems) - len(unique_problems)} duplicates")
+
+            # Kiểm tra tính đúng đắn của đáp án
+            errors = 0
+            for sample in dataset:
+                if sample["problem_type"] == "linear":
+                    try:
+                        eq = sp.sympify(sample["latex_equation"].replace('=', '-'), evaluate=False)
+                        solution = sp.solve(eq, self.x)
+                        expected_answer = f"x = {self._format_number(solution[0])}" if solution else "Không có nghiệm"
+                        if sample["answer"] not in [expected_answer, "Không có nghiệm", "Vô số nghiệm"]:
+                            errors += 1
+                            print(f"Error in {sample['latex_equation']}: Expected {expected_answer}, got {sample['answer']}")
+                    except Exception:
+                        continue
+            print(f"Found {errors} answer errors")
 
 if __name__ == "__main__":
     generator = MathDatasetGenerator()
     generator.generate_dataset(18000, "data/mathsolver/math_dataset.json", batch_size=100)
-
-    validate_dataset("data/mathsolver/math_dataset.json")
+    generator.validate_dataset("data/mathsolver/math_dataset.json")

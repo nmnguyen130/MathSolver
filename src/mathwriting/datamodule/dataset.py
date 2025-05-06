@@ -3,7 +3,7 @@ from PIL import Image
 from torch import Tensor
 from torch.utils.data import Dataset
 
-from src.shared.preprocessing.latex_tokenizer import LaTeXTokenizer
+from src.mathwriting.preprocessing.tokenizer import LaTeXTokenizer
 
 class MathWritingDataset(Dataset):
     """

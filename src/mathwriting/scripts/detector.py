@@ -1,43 +1,75 @@
+from pathlib import Path
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 import torch
+import torch.nn.functional as F
 from torchvision import transforms
 from matplotlib.gridspec import GridSpec
 from matplotlib.animation import FuncAnimation, PillowWriter
 
-from src.mathwriting.models.hmre_model import MathWritingModel
-from src.mathwriting.datamodule.dataloader import MathWritingDataManager
+from src.mathwriting.models.model import MathWritingModel
+from src.mathwriting.preprocessing.tokenizer import LaTeXTokenizer
 
 class LatexDetector:
-    def __init__(self, data_dir: str, checkpoint_path: str, device=None):
+    def __init__(self, vocab_file: str, checkpoint_path: str, device=None):
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
 
-        self.data_manager = MathWritingDataManager(data_dir=data_dir, batch_size=1)
-        self.tokenizer = self.data_manager.tokenizer
+        vocab_path = Path(vocab_file)
+        self.tokenizer = LaTeXTokenizer(vocab_path)
 
         # Load mô hình
         self.model = MathWritingModel(
-            vocab_size=self.data_manager.vocab_size,
-            img_size=224,
-            embed_dim=256
+            vocab_size=self.tokenizer.vocab_size,
         )
         self.model.load_state_dict(torch.load(checkpoint_path, map_location=self.device)["model_state"])
         self.model.to(self.device)
         self.model.eval()
 
         self.transform = transforms.Compose([
-            transforms.Resize((224, 224)),
+            transforms.Grayscale(num_output_channels=3),
             transforms.ToTensor(),
+            transforms.Normalize((0.7931, 0.7931, 0.7931), (0.1738, 0.1738, 0.1738))
         ])
 
     def predict_from_image(self, image: Image.Image) -> str:
         image = image.convert("RGB")
-        img_tensor = self.transform(image).unsqueeze(0).to(self.device)
+        img_tensor = self._preprocess_image(image).to(self.device)
 
         with torch.no_grad():
-            prediction = self.model.greedy_search(img_tensor, self.tokenizer)[0]
-        return prediction
+            preds = self.model.generate(img_tensor)
+            preds_decoded = [self.tokenizer.decode(pred.tolist()) for pred in preds]
+        return preds_decoded[0]
+    
+    def _preprocess_image(self, image: Image.Image, img_size=(224, 224)):
+        max_height, max_width = img_size
+        bg_value = 1.0  # Giá trị nền trắng sau chuẩn hóa
+
+        img_tensor = self.transform(image)
+
+        _, img_h, img_w = img_tensor.size()
+
+        # Tạo tensor nền trắng
+        src = torch.full((1, 3, max_height, max_width), bg_value, dtype=img_tensor.dtype)
+
+        # Resize nếu ảnh lớn hơn max_height hoặc max_width
+        if img_h > max_height or img_w > max_width:
+            scale = min(max_height / img_h, max_width / img_w)
+            new_h = int(img_h * scale)
+            new_w = int(img_w * scale)
+            img_tensor = F.interpolate(img_tensor.unsqueeze(0), size=(new_h, new_w), 
+                                    mode='bilinear', align_corners=False).squeeze(0)
+        else:
+            new_h, new_w = img_h, img_w  # Giữ nguyên kích thước nếu ảnh nhỏ
+
+        # Căn giữa và pad ảnh
+        pad_h_start = (max_height - new_h) // 2
+        pad_w_start = (max_width - new_w) // 2
+        pad_h_end = pad_h_start + new_h
+        pad_w_end = pad_w_start + new_w
+        src[0, :, pad_h_start:pad_h_end, pad_w_start:pad_w_end] = img_tensor
+
+        return src
     
     def visualize_processing(self, image: Image.Image, output_path: str = "model_processing_animation.gif"):
         image = image.convert("RGB")

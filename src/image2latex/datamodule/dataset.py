@@ -9,17 +9,16 @@ class ImageLatexDataset(Dataset):
     def __init__(self, image_dir: Path, latex_file: Path, tokenizer: LaTeXTokenizer, transform=None):
         super().__init__()
         self.image_dir = Path(image_dir)
-        self.latex_file = Path(latex_file)
         self.tokenizer = tokenizer
         self.transform = transform
-        self.samples = self._load_samples()
+        self.samples = self._load_samples(latex_file)
 
-    def _load_samples(self):
+    def _load_samples(self, latex_file: Path):
         if not self.latex_file.exists():
-            raise FileNotFoundError(f"Latex file not found: {self.latex_file}")
+            raise FileNotFoundError(f"Latex file not found: {latex_file}")
 
         samples = []
-        with open(self.latex_file, "r", encoding="utf-8") as f:
+        with open(latex_file, "r", encoding="utf-8") as f:
             for line in f:
                 image_name, label = line.strip().split("\t")
                 samples.append((image_name, label))

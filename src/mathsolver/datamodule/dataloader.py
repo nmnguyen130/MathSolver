@@ -1,12 +1,12 @@
 import os
-from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import DataLoader, random_split
 from typing import List, Dict
 import torch
+from torch.utils.data import DataLoader, random_split
+from torch.nn.utils.rnn import pad_sequence
+from transformers import T5Tokenizer
 
-from src.shared.preprocessing.math_tokenizer import MathTokenizer
+from src.mathsolver.preprocessing.tokenizer import MathTokenizer
 from src.mathsolver.datamodule.dataset import MathDataset
-from src.mathsolver.models.expression_tree import ExprTreeParser
 
 class MathSolverDataManager:
     def __init__(
@@ -33,12 +33,10 @@ class MathSolverDataManager:
 
     def _load_data(self):
         self.tokenizer = MathTokenizer()
-        self.dataset = MathDataset(self.json_file, self.tokenizer, self.max_length)
-
-        self.tokenizer.build_vocab(self.dataset.data)
+        self.tokenizer.build_vocab(self.json_file)
         self.vocab_size = len(self.tokenizer.vocab)
 
-        self.parser = ExprTreeParser(self.tokenizer)
+        self.dataset = MathDataset(self.json_file, self.tokenizer, self.max_length)
 
     def _split_data(self, val_size: float = 0.2) -> None:
         dataset_size = len(self.dataset)
@@ -61,7 +59,6 @@ class MathSolverDataManager:
         return {
             'input_ids': input_ids,
             'target_ids': target_ids,
-            'graph_data': [item['graph_data'] for item in batch]
         }
 
     def get_dataloader(self, type: str) -> DataLoader:
@@ -82,7 +79,7 @@ class MathSolverDataManager:
             collate_fn=self.collate_fn,
             pin_memory=self.pin_memory
         )
-    
+
     def decode(self, tensor: torch.Tensor) -> List[str]:
         decoded_labels = []
         for t in tensor:
@@ -93,19 +90,14 @@ class MathSolverDataManager:
 if __name__ == '__main__':
     dataloader = MathSolverDataManager(json_file='./data/mathsolver/math_dataset.json', batch_size=1, max_length=512)
     train_loader = dataloader.get_dataloader('train')
-    
+
     for batch in train_loader:
         input_ids = batch['input_ids']
         target_ids = batch['target_ids']
-        graph_data = batch['graph_data'][0]
-        print(graph_data)
         
         input_decode = dataloader.decode(input_ids)
         target_decode = dataloader.decode(target_ids)
         
-        dataloader.parser.print_graph(graph_data, dataloader.tokenizer)
-        dataloader.parser.visualize_graph(graph_data, dataloader.tokenizer)
-
         print("Decoded Source IDs:")
         for src in input_decode:
             print(src)

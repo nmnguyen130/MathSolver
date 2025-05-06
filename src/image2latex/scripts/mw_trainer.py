@@ -1,6 +1,5 @@
-import glob
-import os
 import math
+import os
 import torch
 import torch.nn as nn
 from torch.optim import AdamW
@@ -8,8 +7,8 @@ from torch.optim.lr_scheduler import LambdaLR
 from tqdm import tqdm
 import jiwer
 
-from src.mathwriting.datamodule.dataloader import MathWritingDataManager
-from src.mathwriting.models.model import MathWritingModel
+from src.image2latex.datamodule.mw_dataloader import MWImageLatexDataManager
+from src.image2latex.models.model import ImageToLatexModel
 
 class Trainer:
     def __init__(
@@ -19,7 +18,7 @@ class Trainer:
         num_epochs: int = 30,
         batch_size: int = 16,
         learning_rate: float = 1e-4,
-        weight_decay: float = 1e-5,  # L2 regularization
+        weight_decay: float = 1e-4,  # L2 regularization
         patience: int = 3,
         min_delta: float = 0.001,
         device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
@@ -39,19 +38,18 @@ class Trainer:
         self.start_epoch = 0
 
         os.makedirs(self.checkpoint_dir, exist_ok=True)
-        self.ckpt_path = os.path.join(self.checkpoint_dir, "best_model (13).pt")
+        self.ckpt_path = os.path.join(self.checkpoint_dir, "best_model (29).pt")
 
         self._load_data()
         self._initialize_model()
 
     def _load_data(self):
-        self.data_manager = MathWritingDataManager(data_dir=self.data_dir, batch_size=self.batch_size)
+        self.data_manager = MWImageLatexDataManager(data_dir=self.data_dir, batch_size=self.batch_size)
         self.train_loader = self.data_manager.get_dataloader("train")
         self.val_loader = self.data_manager.get_dataloader("val")
-        self.test_loader = self.data_manager.get_dataloader("test")
 
     def _initialize_model(self, new_lr=None):
-        self.model = MathWritingModel(
+        self.model = ImageToLatexModel(
             vocab_size=self.data_manager.vocab_size,
         )
         self.model.to(self.device)
@@ -59,16 +57,6 @@ class Trainer:
 
         lr_to_use = new_lr if new_lr is not None else self.learning_rate
         self._initialize_scheduler(lr_to_use)
-
-    def _resume_checkpoint(self):
-        if os.path.exists(self.ckpt_path):
-            print("Resuming from checkpoint...")
-            checkpoint = torch.load(self.ckpt_path, map_location=self.device)
-            self.model.load_state_dict(checkpoint["model_state"])
-            self.optimizer.load_state_dict(checkpoint["optimizer_state"])
-            self.scheduler.load_state_dict(checkpoint["scheduler_state"])
-            self.best_val_loss = checkpoint.get("val_loss", float("inf"))
-            self.start_epoch = checkpoint.get("epoch", 0) + 1
 
     def _initialize_scheduler(self, lr):
         self.optimizer = AdamW(self.model.parameters(), lr=lr, weight_decay=self.weight_decay)
@@ -94,23 +82,13 @@ class Trainer:
             if reset_lr:
                 print(f"Resetting optimizer and scheduler with new learning rate: {new_lr}")
                 self._initialize_scheduler(lr=new_lr)
+                self.start_epoch = 0
             else:
                 self.optimizer.load_state_dict(checkpoint["optimizer_state"])
                 self.scheduler.load_state_dict(checkpoint["scheduler_state"])
+                self.start_epoch = checkpoint.get("epoch", 0) + 1
             self.best_val_loss = checkpoint.get("val_loss", float("inf"))
-            self.start_epoch = checkpoint.get("epoch", 0) + 1
-
-    def _resume_checkpoint_epoch(self, checkpoint_path):
-        if os.path.exists(checkpoint_path):
-            print(f"Loading checkpoint from {checkpoint_path}...")
-            checkpoint = torch.load(checkpoint_path, map_location=self.device)
-            self.model.load_state_dict(checkpoint["model_state"])
-            self.best_val_loss = checkpoint.get("val_loss", float("inf"))
-            self.start_epoch = checkpoint.get("epoch", 0) + 1
-            return self.start_epoch
-        else:
-            print(f"No checkpoint found at {checkpoint_path}!")
-            return 0
+            print(f"Resuming from epoch {self.start_epoch}")
 
     def _save_checkpoint(self, epoch, val_loss, is_best=False):
         checkpoint = {
@@ -222,74 +200,6 @@ class Trainer:
         avg_cer = sum(cer_scores) / len(cer_scores) if cer_scores else 0.0
         return avg_loss, avg_acc, avg_cer
 
-    def evaluate_test(self):
-        """Đánh giá trên tập test, trả về Test Loss, Test Acc, Test CER"""
-        self.model.eval()
-        total_loss = 0.0
-        total_correct = 0
-        total_tokens = 0
-        cer_scores = []
-
-        with torch.no_grad():
-            pbar = tqdm(self.test_loader, desc="Evaluating on Test", leave=False)
-
-            for src, tgt in pbar:
-                src, tgt = src.to(self.device), tgt.to(self.device)
-                tgt_input = tgt[:, :-1]
-                tgt_output = tgt[:, 1:]
-                outputs = self.model(src, tgt_input)
-
-                # Tính Test Loss
-                loss = self.criterion(outputs.reshape(-1, outputs.size(-1)), tgt_output.reshape(-1))
-                total_loss += loss.item()
-
-                # Tính Test Acc
-                preds = torch.argmax(outputs, dim=-1)
-                mask = tgt_output != 0
-                correct = (preds == tgt_output) & mask
-                total_correct += correct.sum().item()
-                total_tokens += mask.sum().item()
-
-                # Tính Test CER
-                preds_decoded = [self.data_manager.tokenizer.decode(pred.tolist()) for pred in preds]
-                truths_decoded = [self.data_manager.tokenizer.decode(t.tolist()) for t in tgt_output]
-                for pred, truth in zip(preds_decoded, truths_decoded):
-                    if truth.strip():
-                        cer = jiwer.cer(truth, pred)
-                        cer_scores.append(cer)
-
-                pbar.set_postfix(test_loss=loss.item())
-
-        avg_loss = total_loss / len(self.test_loader)
-        avg_acc = total_correct / total_tokens if total_tokens > 0 else 0.0
-        avg_cer = sum(cer_scores) / len(cer_scores) if cer_scores else 0.0
-        return avg_loss, avg_acc, avg_cer
-    
-    def evaluate_all_checkpoints(self):
-        """Duyệt qua tất cả checkpoint và đánh giá trên tập test"""
-        print("Evaluating all checkpoints on test set...")
-        checkpoint_files = sorted(glob.glob(os.path.join(self.checkpoint_dir, "best_model_*.pt")))
-        results = []
-
-        for ckpt_path in checkpoint_files:
-            print(f"Resuming from checkpoint: {ckpt_path}")
-            epoch = self._resume_checkpoint_epoch(ckpt_path)
-            test_loss, test_acc, test_cer = self.evaluate_test()
-            results.append({
-                "epoch": epoch,
-                "test_loss": test_loss,
-                "test_acc": test_acc,
-                "test_cer": test_cer
-            })
-            print(f"Epoch {epoch}: Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.4f} | Test CER: {test_cer:.4f}")
-
-        # In tóm tắt kết quả
-        print("\nSummary of Test Results:")
-        for result in results:
-            print(f"Epoch {result['epoch']:02d}: Test Loss: {result['test_loss']:.4f} | Test Acc: {result['test_acc']:.4f} | Test CER: {result['test_cer']:.4f}")
-
-        return results
-
     def load_best_model(self):
         if os.path.exists(self.ckpt_path):
             checkpoint = torch.load(self.ckpt_path, map_location=self.device)
@@ -302,7 +212,7 @@ class Trainer:
         self.model.eval()
         self.load_best_model()
         with torch.no_grad():
-            for i, (src, tgt) in enumerate(self.test_loader):
+            for i, (src, tgt) in enumerate(self.val_loader):
                 if i >= num_samples:
                     break
                 src = src.to(self.device)
@@ -317,14 +227,14 @@ class Trainer:
 
 if __name__ == '__main__':
     trainer = Trainer(
-        data_dir="data/mathwriting-2024/",
-        checkpoint_dir="src/mathwriting/checkpoints",
+        data_dir="data/CROHME/",
+        checkpoint_dir="src/image2latex/checkpoints",
         num_epochs=30,
         batch_size=16,
-        learning_rate=2e-4,
-        weight_decay=1e-4,
+        learning_rate=1e-4,
+        weight_decay=1e-4
     )
+    
     trainer._resume_checkpoint()
     # trainer.train()
-    trainer.predict_sample(num_samples=10)
-    # results = trainer.evaluate_all_checkpoints()
+    trainer.predict_sample(num_samples=3)

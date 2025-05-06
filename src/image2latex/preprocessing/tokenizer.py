@@ -13,17 +13,16 @@ class LaTeXTokenizer:
 
     def save_vocab(self, output_file: Path):
         with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(self.vocab, f, ensure_ascii=False, indent=2)
+            # Lưu mỗi token lên một dòng mới
+            for token in self.vocab:
+                f.write(f"{token}\n")
         print(f"Tokenizer saved to {output_file}")
 
     def load_vocab(self, vocab_file: Path):
         with open(vocab_file, "r", encoding="utf-8") as f:
             vocab = [line.strip() for line in f if line.strip()]
 
-        self.vocab = {token: idx for idx, token in enumerate(self.special_tokens)}
-        for token in vocab:
-            if token not in self.vocab:
-                self.vocab[token] = len(self.vocab)
+        self.vocab = {token: idx for idx, token in enumerate(vocab)}
 
         self.token_to_idx = self.vocab
         self.idx_to_token = {idx: token for token, idx in self.vocab.items()}
@@ -40,7 +39,7 @@ class LaTeXTokenizer:
         self.idx_to_token = {idx: token for token, idx in self.vocab.items()}
         
         # Save vocab to vocab.txt
-        # output_file = Path("vocab.txt")
+        # output_file = Path("src/image2latex/checkpoints/vocab.txt")
         # self.save_vocab(output_file)
 
     def tokenize(self, expression: str) -> list[str]:
