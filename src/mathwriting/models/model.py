@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.mathwriting.models.vit_encoder import PatchEmbedding, ViTEncoder
 from src.mathwriting.models.swin_encoder import SwinEncoder
 
 class PositionalEncoding(nn.Module):
@@ -47,21 +46,10 @@ class TransformerDecoder(nn.Module):
             tgt_mask=tgt_mask,
             tgt_key_padding_mask=padding_mask
         )
-        output = self.norm(output)
+        output = self.norm(output + tgt_embed)  # Add residual connection
         return output
 
 class MathWritingModel(nn.Module):
-    # Vit Encoder + Transformer Decoder
-    # def __init__(self, vocab_size, img_size=224, patch_size=16, in_channels=3,
-    #              embed_dim=256, num_heads=8, depth=3, mlp_dim=1024, dropout=0.1):
-    #     super().__init__()
-    #     self.patch_embedding = PatchEmbedding(img_size, patch_size, in_channels, embed_dim)
-    #     self.encoder = ViTEncoder(embed_dim, num_heads, depth, mlp_dim, dropout)
-
-    #     self.decoder = TransformerDecoder(vocab_size, embed_dim, num_heads, depth, mlp_dim, dropout)
-    #     self.fc_out = nn.Linear(embed_dim, vocab_size)
-
-    # Swin Encoder + Transformer Decoder
     def __init__(self, vocab_size, img_size=224, patch_size=4, in_channels=3,
                  embed_dim=64, num_heads=[2, 4, 8], depths=[1, 1, 2], mlp_dim=1024, dropout=0.1):
         super().__init__()
@@ -74,11 +62,6 @@ class MathWritingModel(nn.Module):
         return mask
 
     def forward(self, img, tgt):
-        # Vit Encoder
-        # memory = self.patch_embedding(img)  # (B, num_patches+1, embed_dim)
-        # memory = self.encoder(memory)  # (B, num_patches+1, embed_dim)
-
-        # Swin Encoder
         memory = self.encoder(img)  # (B, num_patches, 256)
 
         tgt_mask = self.generate_square_subsequent_mask(tgt.size(1)).to(tgt.device)
@@ -86,14 +69,9 @@ class MathWritingModel(nn.Module):
         output = self.fc_out(output)  # (B, tgt_len, vocab_size)
         return output
 
-    def generate(self, img, max_len=100, sos_idx=1, eos_idx=2):
+    def generate(self, img, max_len=100, sos_idx=1, eos_idx=2):  # Greedy search
         self.eval()
         with torch.no_grad():
-            # Vit Encoder
-            # memory = self.patch_embedding(img)  # (B, num_patches+1, embed_dim)
-            # memory = self.encoder(memory)  # (B, num_patches+1, embed_dim)
-
-            # Swin Encoder
             memory = self.encoder(img)  # (B, num_patches, 256)
 
             tgt = torch.ones(img.size(0), 1, dtype=torch.long, device=img.device) * sos_idx
@@ -112,11 +90,6 @@ class MathWritingModel(nn.Module):
     def beam_search(self, img, max_len=100, sos_idx=1, eos_idx=2, beam_width=3):
         self.eval()
         with torch.no_grad():
-            # Vit Encoder
-            # memory = self.patch_embedding(img)  # (B, num_patches+1, embed_dim)
-            # memory = self.encoder(memory)  # (B, num_patches+1, embed_dim)
-
-            # Swin Encoder
             memory = self.encoder(img)  # (B, num_patches, 256)
             batch_size = img.size(0)
             device = img.device

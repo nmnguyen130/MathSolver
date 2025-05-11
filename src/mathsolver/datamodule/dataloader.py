@@ -3,7 +3,6 @@ from typing import List, Dict
 import torch
 from torch.utils.data import DataLoader, random_split
 from torch.nn.utils.rnn import pad_sequence
-from transformers import T5Tokenizer
 
 from src.mathsolver.preprocessing.tokenizer import MathTokenizer
 from src.mathsolver.datamodule.dataset import MathDataset

@@ -6,7 +6,6 @@ torch
 torchvision
 scikit-learn
 transformers
-sentencepiece
 jiwer
 pycairo
 tqdm

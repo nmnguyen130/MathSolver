@@ -61,6 +61,26 @@ body {
   gap: 10px;
 }
 
+.solution-steps {
+  background: #f8f9fa;
+  border-radius: 4px;
+  padding: 15px;
+  margin-top: 10px;
+  display: none;
+}
+
+.solution-steps h3 {
+  color: #007bff;
+  margin-bottom: 10px;
+}
+
+#stepsContent {
+  padding: 10px;
+  border-radius: 4px;
+  background: white;
+  min-height: 100px;
+}
+
 .buttons {
   display: flex;
   gap: 10px;

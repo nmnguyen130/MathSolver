@@ -4,30 +4,28 @@ import time
 MODULES = {
     # Build
     '1': 'build.api',
-    '2': 'build.solver',
-    '3': 'build.pre_render_dataset',
+    '2': 'build.pre_render_dataset',
+    '3': 'build.resize_image',
     '4': 'build.visualize_batch',
-    '5': 'build.visualize_model',
-    '6': 'build.resize_image',
 
     # Shared Modules
-    '7': 'src.shared.preprocessing.latex_tokenizer',
-    '8': 'src.shared.preprocessing.inkml_loader',
+    '7': 'src.shared.preprocessing.inkml_loader',
 
     # Mathwriting modules
-    '9': 'src.mathwriting.scripts.trainer',
+    '10': 'src.mathwriting.preprocessing.tokenizer',
+    '11': 'src.mathwriting.scripts.trainer',
 
     # Mathsolver modules
-    '10': 'src.mathsolver.datamodule.create_dataset',
-    '11': 'src.mathsolver.preprocessing.tokenizer',
-    '12': 'src.mathsolver.datamodule.dataloader',
-    '13': 'src.mathsolver.scripts.trainer',
+    '15': 'src.mathsolver.datamodule.create_dataset',
+    '16': 'src.mathsolver.preprocessing.tokenizer',
+    '17': 'src.mathsolver.datamodule.dataloader',
+    '18': 'src.mathsolver.scripts.trainer',
 
-    '14': 'src.image2latex.preprocessing.generate_latex_file',
-
-    '15': 'src.image2latex.datamodule.dataloader',
-    '16': 'src.image2latex.scripts.trainer',
-    '17': 'src.image2latex.scripts.mw_trainer',}
+    # Image2Latex modules
+    '20': 'src.image2latex.preprocessing.generate_latex_file',
+    '21': 'src.image2latex.datamodule.dataloader',
+    '22': 'src.image2latex.scripts.trainer',
+    '23': 'src.image2latex.scripts.mw_trainer',}
 
 def print_modules():
     print("\nAvailable modules:")

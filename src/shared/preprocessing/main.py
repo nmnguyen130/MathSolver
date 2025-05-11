@@ -3,7 +3,7 @@ import os
 from src.shared.preprocessing.inkml_loader import InkMLLoader, Ink
 from src.shared.preprocessing.bbox_loader import BBoxLoader
 from src.shared.preprocessing.symbol_extractor import SymbolExtractor
-from src.mathwriting.preprocessing.ink_renderer import InkRenderer
+from src.shared.preprocessing.ink_renderer import InkRenderer
 
 ROOT_DIR = "data/mathwriting-2024-excerpt"
 BBOX_FILE = "synthetic-bboxes.jsonl"

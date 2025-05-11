@@ -1,6 +1,6 @@
 # MathAI Project
 
-This project is focused on developing a machine learning model for mathematical image recognition.
+Dự án này tập trung vào việc phát triển một mô hình học máy để nhận dạng hình ảnh toán học.
 
 Link dataset: https://github.com/google-research/google-research/tree/master/mathwriting
 
@@ -48,3 +48,11 @@ Lưu thông tin nét viết (tọa độ không gian, thời gian tương đối
    ```bash
    pip install -r requirements.txt
    ```
+
+## How to run
+
+1.  Để chạy các file trong dự án, bạn có thể sử dụng lệnh sau:
+
+    ```bash
+    python -m run
+    ```

@@ -32,15 +32,15 @@ detectBtn.addEventListener("click", async () => {
     const formData = new FormData();
     formData.append("image", uploadedImage);
 
-    const response = await fetch("http://localhost:5000/predict", {
+    const response = await fetch("http://127.0.0.1:5000/predict", {
       method: "POST",
       body: formData,
     });
     const data = await response.json();
 
-    if (data.latex) {
-      latexOutput.value = data.latex;
-      renderMath(data.latex);
+    if (data.equation) {
+      latexOutput.value = data.equation;
+      renderMath(data.equation);
       solveBtn.disabled = false;
       copyBtn.disabled = false;
     } else {
@@ -81,16 +81,43 @@ solveBtn.addEventListener("click", async () => {
   if (!latex) return;
   solveBtn.disabled = true;
   try {
-    // Simulate solving (replace with actual solver API call)
-    // const response = await fetch('YOUR_SOLVER_API_ENDPOINT', {
-    //     method: 'POST',
-    //     body: JSON.stringify({ latex })
-    // });
-    // const data = await response.json();
+    // Simulate API call to detect formula
+    const formData = new FormData();
+    formData.append("equation", latex);
+    formData.append("query", "Tìm x");
 
-    // Simulated solver response
-    const solution = "\\frac{(x + 1)^2}{x - 1}";
-    renderMath(solution); // Render solution as formula, not LaTeX code
+    const response = await fetch("http://127.0.0.1:5000/solve", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+    console.log(data);
+    if (data.solution) {
+      // Display final solution
+      renderMath(data.solution);
+
+      // Display solution steps if available
+      if (data.steps) {
+        const stepsContent = document.getElementById("stepsContent");
+        stepsContent.innerHTML = "";
+        data.steps.forEach((step, index) => {
+          const stepDiv = document.createElement("div");
+          stepDiv.className = "step";
+          stepDiv.innerHTML = `
+            <div class="step-number">Step ${index + 1}:</div>
+            <div class="step-content">\(${step}\)</div>
+          `;
+          stepsContent.appendChild(stepDiv);
+        });
+        MathJax.typesetPromise([stepsContent]).catch((err) => {
+          console.error("MathJax error:", err);
+        });
+        document.getElementById("solutionSteps").style.display = "block";
+      }
+    } else {
+      mathOutput.innerHTML = "No solution found";
+    }
   } catch (error) {
     mathOutput.innerHTML = "Error solving formula";
   } finally {

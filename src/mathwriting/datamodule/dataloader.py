@@ -28,19 +28,31 @@ class MathWritingDataManager:
         # Check for file existence early
         self._check_data_dirs()
 
-        # Define image transformations
+        # Define image transformations for better handling of camera captures and scans
         self.train_transform = transforms.Compose([
+            # Random perspective transformation to simulate camera angles
+            transforms.RandomPerspective(distortion_scale=0.2, p=0.5, fill=255),
+            
+            # Random affine transformation with more aggressive parameters
             transforms.RandomAffine(
-                degrees=1,
-                scale=(0.85, 1.0),
+                degrees=5,
                 translate=(0, 0),
+                scale=(0.8, 1.0),
+                shear=(-5, 5),
                 interpolation=transforms.InterpolationMode.BICUBIC,
                 fill=255
-            ),  # shift=0, rotate=±1°, scale=0.85~1
-            transforms.ColorJitter(brightness=0.05, contrast=0.2),  # brightness ~5%, contrast ~[-20%, 0%]
-            transforms.RandomApply([transforms.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.5))], p=0.2),
+            ),
+            
+            transforms.ColorJitter(brightness=0.1, contrast=0.2),
+            transforms.RandomApply([transforms.GaussianBlur((3, 3), sigma=(0.1, 2.0))], p=0.4),
+            
             transforms.Grayscale(num_output_channels=3),
             transforms.ToTensor(),
+
+            # Add random noise to simulate camera artifacts
+            transforms.RandomApply([
+                transforms.Lambda(lambda x: x + torch.randn_like(x) * 0.05)
+            ], p=0.3),
             transforms.Normalize((0.7931, 0.7931, 0.7931), (0.1738, 0.1738, 0.1738))
         ])
 
@@ -49,6 +61,28 @@ class MathWritingDataManager:
             transforms.ToTensor(),
             transforms.Normalize((0.7931, 0.7931, 0.7931), (0.1738, 0.1738, 0.1738))
         ])
+
+        # Define image transformations
+        # self.train_transform = transforms.Compose([
+        #     transforms.RandomAffine(
+        #         degrees=1,
+        #         scale=(0.85, 1.0),
+        #         translate=(0, 0),
+        #         interpolation=transforms.InterpolationMode.BICUBIC,
+        #         fill=255
+        #     ),  # shift=0, rotate=±1°, scale=0.85~1
+        #     transforms.ColorJitter(brightness=0.05, contrast=0.2),  # brightness ~5%, contrast ~[-20%, 0%]
+        #     transforms.RandomApply([transforms.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.5))], p=0.2),
+        #     transforms.Grayscale(num_output_channels=3),
+        #     transforms.ToTensor(),
+        #     transforms.Normalize((0.7931, 0.7931, 0.7931), (0.1738, 0.1738, 0.1738))
+        # ])
+
+        # self.val_test_transform = transforms.Compose([
+        #     transforms.Grayscale(num_output_channels=3),
+        #     transforms.ToTensor(),
+        #     transforms.Normalize((0.7931, 0.7931, 0.7931), (0.1738, 0.1738, 0.1738))
+        # ])
 
         # Initialize tokenizer and datasets
         self.tokenizer = None

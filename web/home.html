@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Math Solver</title>
     <link rel="stylesheet" href="styles.css" />
-    
+
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script
       id="MathJax-script"
@@ -36,6 +36,10 @@
       <div class="box result-box">
         <h2>Result</h2>
         <div id="mathOutput"></div>
+        <div id="solutionSteps" class="solution-steps">
+          <h3>Solution Steps</h3>
+          <div id="stepsContent"></div>
+        </div>
         <div class="buttons">
           <button id="solveBtn" disabled>Solve</button>
           <button id="copyBtn" disabled>Copy LaTeX</button>

@@ -39,7 +39,7 @@ class Trainer:
         self.start_epoch = 0
 
         os.makedirs(self.checkpoint_dir, exist_ok=True)
-        self.ckpt_path = os.path.join(self.checkpoint_dir, "best_model (13).pt")
+        self.ckpt_path = os.path.join(self.checkpoint_dir, "best_model (27).pt")
 
         self._load_data()
         self._initialize_model()
@@ -144,7 +144,7 @@ class Trainer:
 
                 for src, tgt in pbar:
                     src, tgt = src.to(self.device), tgt.to(self.device)
-                    tgt_input = tgt[:, :-1]
+                    tgt_input = tgt[:, :-1] 
                     tgt_output = tgt[:, 1:]
                     outputs = self.model(src, tgt_input)
 
@@ -324,7 +324,7 @@ if __name__ == '__main__':
         learning_rate=2e-4,
         weight_decay=1e-4,
     )
-    trainer._resume_checkpoint()
-    # trainer.train()
-    trainer.predict_sample(num_samples=10)
-    # results = trainer.evaluate_all_checkpoints()
+    # trainer._resume_checkpoint()
+    trainer.train()
+    trainer.predict_sample(num_samples=100)
+    # results = trainer.evaluate_all_checkpoints() 

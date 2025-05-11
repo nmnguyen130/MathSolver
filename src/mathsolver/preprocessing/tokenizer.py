@@ -1,15 +1,16 @@
 import json
+from pathlib import Path
 import re
 from collections import Counter
 from typing import List, Tuple
 
 class MathTokenizer:
-    def __init__(self):
-        # Token đặc biệt
+    def __init__(self, vocab_file: Path = None):
+        # Special tokens
         self.special_tokens = [
             '<pad>', '<sos>', '<eos>', '<unk>',
             '<NUM>', '</NUM>',
-            '<EQ>', '</EQ>', '<QUERY>', '</QUERY>', '<STEP>', '</STEP>', '<ANSWER>', '</ANSWER>'
+            '<EQ>', '</EQ>', '<QUERY>', '</QUERY>', '<STEP>', '</STEP>', '<ANSWER>', '</ANSWER>',
         ]
         self.operators = ['+', '-', '\\times', '\\cdot', '\\div', '=', '^', '\\pm',
                           '<', '>', '\\leq', '\\geq']
@@ -21,7 +22,7 @@ class MathTokenizer:
         self.vocab = {}
         self.token_to_idx = {}
         self.idx_to_token = {}
-        # Regex cho LaTeX: tách chi tiết từng thành phần
+        # Regex cho LaTeX: tách chi tiết từng thành phần        
         self._latex_re = re.compile(
             r"[a-zA-Z]+'+|"              # Từ f', f'', g'
             r'\\[a-zA-Z]+|'              # Lệnh LaTeX (như \sqrt, \frac)
@@ -41,6 +42,11 @@ class MathTokenizer:
             r'[0-9]|\.|'                 # Từng chữ số, dấu chấm
             r'\S'                        # Ký tự khác
         )
+
+        if vocab_file and vocab_file.exists():
+            self.load_vocab(vocab_file)
+
+        self.vocab_size = len(self.vocab)
 
     def _preprocess_common(self, text: str) -> str:
         """Tiền xử lý chung: tách dấu câu và ngoặc, chuẩn hóa khoảng trắng."""
@@ -190,6 +196,10 @@ class MathTokenizer:
         self.token_to_idx = self.vocab
         self.idx_to_token = {idx: token for token, idx in self.vocab.items()}
 
+        # Save vocab to vocab.txt
+        # output_file = Path("src/mathsolver/checkpoints/vocab.txt")
+        # self.save_vocab(output_file)
+
     def _encode_step(self, step: str) -> List[str]:
         """Mã hóa solution step."""
         tokens = ['<STEP>']
@@ -265,6 +275,22 @@ class MathTokenizer:
         input_ids = [self.token_to_idx.get(token, unk_id) for token in input_tokens]
 
         return input_ids
+    
+    def save_vocab(self, output_file: Path):
+        with open(output_file, "w", encoding="utf-8") as f:
+            # Lưu mỗi token lên một dòng mới
+            for token in self.vocab:
+                f.write(f"{token}\n")
+        print(f"Tokenizer saved to {output_file}")
+
+    def load_vocab(self, vocab_file: Path):
+        with open(vocab_file, "r", encoding="utf-8") as f:
+            vocab = [line.strip() for line in f if line.strip()]
+
+        self.vocab = {token: idx for idx, token in enumerate(vocab)}
+
+        self.token_to_idx = self.vocab
+        self.idx_to_token = {idx: token for token, idx in self.vocab.items()}
 
 if __name__ == '__main__':
     # Dataset mẫu
@@ -283,7 +309,7 @@ if __name__ == '__main__':
         },
         {
             "problem_type": "linear",
-            "latex_equation": "7x = -9",
+            "latex_equation": "70x = -9",
             "query": "Tìm nghiệm của 7x = -9",
             "solution_steps": [
             "Phương trình: \\(7x = -9\\)",
@@ -296,6 +322,7 @@ if __name__ == '__main__':
     
     tokenizer = MathTokenizer()
     tokenizer.build_vocab('data/mathsolver/math_dataset.json')
+    print("Vocabulary size:", len(tokenizer.vocab))
     
     # In từ vựng để kiểm tra
     print("Vocabulary:", tokenizer.vocab)
