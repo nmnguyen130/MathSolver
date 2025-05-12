@@ -10,7 +10,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 latex_detector = LatexDetector(
     vocab_file="src/mathwriting/checkpoints/vocab.txt",
-    checkpoint_path="src/mathwriting/checkpoints/best_model (29).pt"
+    checkpoint_path="src/mathwriting/checkpoints/epoch_04.pt"
 )
 
 math_solver = MathSolver(

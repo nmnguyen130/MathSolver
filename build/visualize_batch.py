@@ -1,6 +1,7 @@
 import time
 from pathlib import Path
 import matplotlib.pyplot as plt
+import torch
 from torchvision.utils import make_grid
 
 from src.image2latex.datamodule.dataloader import ImageLatexDataManager
@@ -60,15 +61,18 @@ def visualize_batch():
         # 5. Visualize Images
         print("\nVisualizing images...")
         plt.figure(figsize=(16, 16))
+        mean = torch.tensor([0.7931]).view(1, 1, 1)
+        std = torch.tensor([0.1738]).view(1, 1, 1)
+        src_display = src * std + mean
         try:
-            grid_img = make_grid(src, nrow=int(BATCH_SIZE**0.5))
+            grid_img = make_grid(src_display, nrow=int(BATCH_SIZE**0.5))
             # Check if images are normalized (0-1) or not (0-255) for display
             if grid_img.max() <= 1.0 and grid_img.min() >= 0.0:
-                plt.imshow(grid_img.permute(1, 2, 0))
+                plt.imshow(grid_img.permute(1, 2, 0), cmap="gray")
             else:
                 # Assuming ToTensor() was used, which scales to [0, 1]
                 # If not, might need different handling or normalization check
-                plt.imshow(grid_img.permute(1, 2, 0))
+                plt.imshow(grid_img.permute(1, 2, 0), cmap="gray")
                 print("Warning: Image tensor values outside [0, 1]. Display might be incorrect if not scaled.")
 
             plt.title(f"Batch of {BATCH_SIZE} Handwritten Math Expressions")

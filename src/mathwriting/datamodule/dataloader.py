@@ -3,7 +3,8 @@ import torch.nn.functional as F
 from pathlib import Path
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
-from torchvision import transforms
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 from src.mathwriting.datamodule.dataset import MathWritingDataset
 from src.mathwriting.preprocessing.tokenizer import LaTeXTokenizer
@@ -28,61 +29,27 @@ class MathWritingDataManager:
         # Check for file existence early
         self._check_data_dirs()
 
-        # Define image transformations for better handling of camera captures and scans
-        self.train_transform = transforms.Compose([
-            # Random perspective transformation to simulate camera angles
-            transforms.RandomPerspective(distortion_scale=0.2, p=0.5, fill=255),
-            
-            # Random affine transformation with more aggressive parameters
-            transforms.RandomAffine(
-                degrees=5,
-                translate=(0, 0),
-                scale=(0.8, 1.0),
-                shear=(-5, 5),
-                interpolation=transforms.InterpolationMode.BICUBIC,
-                fill=255
-            ),
-            
-            transforms.ColorJitter(brightness=0.1, contrast=0.2),
-            transforms.RandomApply([transforms.GaussianBlur((3, 3), sigma=(0.1, 2.0))], p=0.4),
-            
-            transforms.Grayscale(num_output_channels=3),
-            transforms.ToTensor(),
-
-            # Add random noise to simulate camera artifacts
-            transforms.RandomApply([
-                transforms.Lambda(lambda x: x + torch.randn_like(x) * 0.05)
-            ], p=0.3),
-            transforms.Normalize((0.7931, 0.7931, 0.7931), (0.1738, 0.1738, 0.1738))
+        self.train_transform = A.Compose([
+            A.Compose([
+                A.Affine(translate_percent=0, scale=(0.85, 1.0), rotate=1, border_mode=0,
+                         interpolation=3, fill=(255, 255, 255), p=1),
+                A.GridDistortion(distort_limit=0.1, border_mode=0, interpolation=3,
+                                 fill=(255, 255, 255), p=0.5),
+            ], p=1),
+            A.RGBShift(r_shift_limit=15, g_shift_limit=15, b_shift_limit=15, p=0.3),
+            A.GaussNoise(std_range=(0.0392, 0.0392), p=0.2),
+            A.RandomBrightnessContrast(brightness_limit=0.05, contrast_limit=(-0.2, 0), p=0.2),
+            A.ImageCompression(quality_range=(90, 95), p=0.2),
+            A.ToGray(p=1.0),
+            A.Normalize(mean=(0.7931, 0.7931, 0.7931), std=(0.1738, 0.1738, 0.1738)),
+            ToTensorV2()
         ])
 
-        self.val_test_transform = transforms.Compose([
-            transforms.Grayscale(num_output_channels=3),
-            transforms.ToTensor(),
-            transforms.Normalize((0.7931, 0.7931, 0.7931), (0.1738, 0.1738, 0.1738))
+        self.val_test_transform = A.Compose([
+            A.ToGray(p=1.0),
+            A.Normalize(mean=(0.7931, 0.7931, 0.7931), std=(0.1738, 0.1738, 0.1738)),
+            ToTensorV2()
         ])
-
-        # Define image transformations
-        # self.train_transform = transforms.Compose([
-        #     transforms.RandomAffine(
-        #         degrees=1,
-        #         scale=(0.85, 1.0),
-        #         translate=(0, 0),
-        #         interpolation=transforms.InterpolationMode.BICUBIC,
-        #         fill=255
-        #     ),  # shift=0, rotate=±1°, scale=0.85~1
-        #     transforms.ColorJitter(brightness=0.05, contrast=0.2),  # brightness ~5%, contrast ~[-20%, 0%]
-        #     transforms.RandomApply([transforms.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.5))], p=0.2),
-        #     transforms.Grayscale(num_output_channels=3),
-        #     transforms.ToTensor(),
-        #     transforms.Normalize((0.7931, 0.7931, 0.7931), (0.1738, 0.1738, 0.1738))
-        # ])
-
-        # self.val_test_transform = transforms.Compose([
-        #     transforms.Grayscale(num_output_channels=3),
-        #     transforms.ToTensor(),
-        #     transforms.Normalize((0.7931, 0.7931, 0.7931), (0.1738, 0.1738, 0.1738))
-        # ])
 
         # Initialize tokenizer and datasets
         self.tokenizer = None
@@ -133,7 +100,9 @@ class MathWritingDataManager:
         max_width, max_height = img_size
 
         # Create white background
-        bg_value = 1.0
+        mean = 0.7931
+        std = 0.1738
+        bg_value = (1.0 - mean) / std
         src = torch.full((len(images), images[0].size(0), max_height, max_width),
                         bg_value, dtype=images[0].dtype, device=images[0].device)
 

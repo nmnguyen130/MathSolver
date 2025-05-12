@@ -1,5 +1,6 @@
 from pathlib import Path
 from PIL import Image
+import numpy as np
 from torch import Tensor
 from torch.utils.data import Dataset
 
@@ -36,12 +37,14 @@ class MathWritingDataset(Dataset):
         image_path = self.image_dir / image_name
         
         try:
-            image = Image.open(image_path)
+            image = Image.open(image_path).convert("RGB")
+            image = np.array(image)
         except Exception as e:
             raise RuntimeError(f"Error loading image at {image_path}: {e}")
 
         if self.transform:
-            image = self.transform(image)
+            augmented = self.transform(image=image)
+            image = augmented["image"]
 
         label_tensor = Tensor(self.tokenizer.encode(latex_label)).long()
         return image, label_tensor

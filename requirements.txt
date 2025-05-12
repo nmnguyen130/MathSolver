@@ -5,9 +5,9 @@ opencv-python
 torch
 torchvision
 scikit-learn
-transformers
+albumentations
 jiwer
-pycairo
+# pycairo
 tqdm
 aiofiles
 Flask

@@ -9,6 +9,20 @@ class LaTeXTokenizer:
         self.token_to_idx = {}
         self.idx_to_token = {}
         # Regex: Xử lý lệnh LaTeX, ký tự, số, ký hiệu toán học
+        # self._command_re = re.compile(
+        #     r"""(
+        #         \\mathbb\{[a-zA-Z]\}         |  # \mathbb{A}
+        #         \\begin\{[a-z]+\}            |  # \begin{array}
+        #         \\end\{[a-z]+\}              |  # \end{array}
+        #         \\operatorname\*             |  # \operatorname*
+        #         \\[a-zA-Z]+                  |  # \frac, \alpha, ...
+        #         \\\\                         |  # double backslash
+        #         \\[^a-zA-Z]                  |  # \{, \}, \%, ...
+        #         [a-zA-Z0-9]                  |  # single letters or digits
+        #         \S                             # any non-whitespace symbol like + - = etc
+        #     )""",
+        #     re.VERBOSE,
+        # )
         self._command_re = re.compile(
             r"\\[a-zA-Z]+|\\.|[a-zA-Z0-9]|\S"
         )
