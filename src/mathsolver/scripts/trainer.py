@@ -37,7 +37,7 @@ class Trainer:
         self.start_epoch = 0
 
         os.makedirs(self.checkpoint_dir, exist_ok=True)
-        self.ckpt_path = os.path.join(self.checkpoint_dir, "best_model.pt")
+        self.ckpt_path = os.path.join(self.checkpoint_dir, "epoch_29.pt")
         
         self._load_data()
         self._initialize_model()
@@ -221,6 +221,15 @@ class Trainer:
         # Decode the generated token IDs
         generated = self.data_manager.tokenizer.decode(generated_ids)
         return generated if generated else "[No valid tokens generated]"
+    
+    def export_model_only(self, export_path="model_only.pt"):
+        if os.path.exists(self.ckpt_path):
+            checkpoint = torch.load(self.ckpt_path, map_location=self.device)
+            model_state = checkpoint["model_state"]
+            torch.save(model_state, export_path)
+            print(f"[Export] Model state đã được lưu tại '{export_path}'")
+        else:
+            print(f"[Export] Không tìm thấy checkpoint tại '{self.ckpt_path}'")
 
 if __name__ == '__main__':
     trainer = Trainer(
@@ -231,11 +240,12 @@ if __name__ == '__main__':
         learning_rate=1e-4,
         weight_decay=1e-4,
     )
-    trainer.train()
-    equation = "7 + 8 ="
-    query = "cộng"
-    solution = trainer.predict(equation, query)
+    trainer.export_model_only("src/mathsolver/checkpoints/model_only.pt")
+    # trainer.train()
+    # equation = "7 + 8 ="
+    # query = "cộng"
+    # solution = trainer.predict(equation, query)
     
-    print(f"Equation: {equation}")
-    print(f"Query: {query}")
-    print(f"Predicted Solution: {solution}")
+    # print(f"Equation: {equation}")
+    # print(f"Query: {query}")
+    # print(f"Predicted Solution: {solution}")

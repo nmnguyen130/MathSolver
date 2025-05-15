@@ -39,7 +39,7 @@ class Trainer:
         self.start_epoch = 0
 
         os.makedirs(self.checkpoint_dir, exist_ok=True)
-        self.ckpt_path = os.path.join(self.checkpoint_dir, "best_model (27).pt")
+        self.ckpt_path = os.path.join(self.checkpoint_dir, "epoch_30.pt")
 
         self._load_data()
         self._initialize_model()
@@ -315,6 +315,15 @@ class Trainer:
                 # print("Pred Beam   :", preds_b[0])
                 print("Truth     :", truths[0])
 
+    def export_model_only(self, export_path="model_only.pt"):
+        if os.path.exists(self.ckpt_path):
+            checkpoint = torch.load(self.ckpt_path, map_location=self.device)
+            model_state = checkpoint["model_state"]
+            torch.save(model_state, export_path)
+            print(f"[Export] Model state đã được lưu tại '{export_path}'")
+        else:
+            print(f"[Export] Không tìm thấy checkpoint tại '{self.ckpt_path}'")
+
 if __name__ == '__main__':
     trainer = Trainer(
         data_dir="data/mathwriting-2024/",
@@ -324,7 +333,8 @@ if __name__ == '__main__':
         learning_rate=2e-4,
         weight_decay=1e-4,
     )
+    # trainer.export_model_only("src/mathwriting/checkpoints/model_only.pt")
     # trainer._resume_checkpoint()
-    trainer.train()
-    trainer.predict_sample(num_samples=100)
+    # trainer.train()
+    # trainer.predict_sample(num_samples=100)
     # results = trainer.evaluate_all_checkpoints() 

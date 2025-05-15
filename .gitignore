@@ -22,6 +22,7 @@ data/
 # Model checkpoints and saved models
 *.pth
 *.pt
+!model_only.pt
 *.h5
 *.ckpt
 *.model
