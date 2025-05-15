@@ -84,7 +84,14 @@ solveBtn.addEventListener("click", async () => {
     // Simulate API call to detect formula
     const formData = new FormData();
     formData.append("equation", latex);
-    formData.append("query", "Tìm x");
+    let query;
+    if (latex.includes("x")) {
+      query = "Tìm x";
+    } else {
+      query = "Tính";
+    }
+    formData.append("query", query);
+    console.log(formData);
 
     const response = await fetch("http://127.0.0.1:5000/solve", {
       method: "POST",

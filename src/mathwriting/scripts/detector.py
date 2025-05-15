@@ -3,15 +3,13 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 import torch
-import torch.nn.functional as F
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
 
-from src.mathwriting.models.model import MathWritingModel
 from src.mathwriting.preprocessing.tokenizer import LaTeXTokenizer
+from src.mathwriting.datamodule.transforms import get_val_test_transform
+from src.mathwriting.models.model import MathWritingModel
 
 class LatexDetector:
-    def __init__(self, vocab_file: str, checkpoint_path: str, device=None):
+    def __init__(self, vocab_file: str, checkpoint_path: str, img_size=(224, 224), device=None):
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
 
         vocab_path = Path(vocab_file)
@@ -24,19 +22,13 @@ class LatexDetector:
         self.model.to(self.device)
         self.model.eval()
 
-        self.transform = A.Compose([
-            A.ToGray(p=1.0),
-            A.Normalize(mean=(0.7931, 0.7931, 0.7931), std=(0.1738, 0.1738, 0.1738)),
-            ToTensorV2()
-        ])
+        self.mean = 0.7931
+        self.std = 0.1738
+
+        self.transform = get_val_test_transform(img_size, self.mean, self.std)
 
     def _enhance_image(self, image: Image.Image, save_path: str = None) -> Image.Image:
         """Tăng cường ảnh: làm nét, trắng nền, nét đen rõ ràng (cho ảnh từ camera)."""
-        if save_path:
-            original_path = save_path.replace(".png", "_original.png")
-            image.save(original_path)
-            print(f"Original image saved at: {original_path}")
-
         # Convert to numpy for OpenCV processing
         img_np = np.array(image.convert("RGB"))
 
@@ -77,56 +69,29 @@ class LatexDetector:
 
         return enhanced_image
     
-    def _preprocess_image(self, image: Image.Image, img_size=(224, 224), save_path: str = 'preprocessed_image.png'):
-        max_height, max_width = img_size
-        mean = 0.7931
-        std = 0.1738
-        bg_value = (1.0 - mean) / std
-
+    def _preprocess_image(self, image: Image.Image, save_path: str = 'preprocessed_image.png'):
         # Apply enhancement
         image = self._enhance_image(image, save_path="enhanced_image.png")
 
         # Apply transform
         image_np = np.array(image)
         augmented = self.transform(image=image_np)
-        img_tensor = augmented["image"].float()
-        _, img_h, img_w = img_tensor.size()
-
-        # Tạo tensor nền trắng
-        src = torch.full((1, 3, max_height, max_width), bg_value, dtype=img_tensor.dtype)
-
-        # Resize nếu ảnh lớn hơn max_height hoặc max_width
-        if img_h > max_height or img_w > max_width:
-            scale = min(max_height / img_h, max_width / img_w)
-            new_h = int(img_h * scale)
-            new_w = int(img_w * scale)
-            img_tensor = F.interpolate(img_tensor.unsqueeze(0), size=(new_h, new_w), 
-                           mode='bicubic', align_corners=False).squeeze(0)
-        else:
-            new_h, new_w = img_h, img_w  # Giữ nguyên kích thước nếu ảnh nhỏ
-
-        # Căn giữa và pad ảnh
-        pad_h_start = (max_height - new_h) // 2
-        pad_w_start = (max_width - new_w) // 2
-        pad_h_end = pad_h_start + new_h
-        pad_w_end = pad_w_start + new_w
-        src[0, :, pad_h_start:pad_h_end, pad_w_start:pad_w_end] = img_tensor
+        img_tensor = augmented["image"].float().unsqueeze(0)
 
         if save_path:
             # Unnormalize
-            mean = torch.tensor([0.7931, 0.7931, 0.7931]).view(3, 1, 1)
-            std = torch.tensor([0.1738, 0.1738, 0.1738]).view(3, 1, 1)
-            unnormalized = src[0] * std + mean
+            mean = torch.tensor([self.mean] * 3).view(1, 3, 1, 1).to(self.device)
+            std = torch.tensor([self.std] * 3).view(1, 3, 1, 1).to(self.device)
+            unnormalized = img_tensor * std + mean
             unnormalized = unnormalized.clamp(0, 1)
 
             # Convert to PIL image
-            img_np = (unnormalized.cpu().numpy() * 255).astype(np.uint8)  # shape: (3, H, W)
+            img_np = (unnormalized[0].cpu().numpy() * 255).astype(np.uint8)
             img_np = np.transpose(img_np, (1, 2, 0))  # CHW -> HWC
-            pil_image = Image.fromarray(img_np)
-            pil_image.save(save_path)
+            Image.fromarray(img_np).save(save_path)
             print(f"Preprocessed image saved at: {save_path}")
 
-        return src
+        return img_tensor
     
     def predict_from_image(self, image: Image.Image) -> str:
         image = image.convert("RGB")

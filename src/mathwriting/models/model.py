@@ -46,7 +46,7 @@ class TransformerDecoder(nn.Module):
             tgt_mask=tgt_mask,
             tgt_key_padding_mask=padding_mask
         )
-        output = self.norm(output + tgt_embed)  # Add residual connection
+        output = self.norm(output)
         return output
 
 class MathWritingModel(nn.Module):

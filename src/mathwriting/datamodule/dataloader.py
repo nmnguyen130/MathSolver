@@ -3,10 +3,9 @@ import torch.nn.functional as F
 from pathlib import Path
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
 
 from src.mathwriting.datamodule.dataset import MathWritingDataset
+from src.mathwriting.datamodule.transforms import get_train_transform, get_val_test_transform
 from src.mathwriting.preprocessing.tokenizer import LaTeXTokenizer
 
 class MathWritingDataManager:
@@ -16,11 +15,13 @@ class MathWritingDataManager:
         batch_size: int = 1,
         num_workers: int = 0,
         pin_memory: bool = False,
+        img_size: tuple = (224, 224),
     ):
         self.data_dir = Path(data_dir)
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
+        self.img_size = img_size
 
         self.train_dir = self.data_dir / "train_image"
         self.valid_dir = self.data_dir / "valid_image"
@@ -29,27 +30,11 @@ class MathWritingDataManager:
         # Check for file existence early
         self._check_data_dirs()
 
-        self.train_transform = A.Compose([
-            A.Compose([
-                A.Affine(translate_percent=0, scale=(0.85, 1.0), rotate=1, border_mode=0,
-                         interpolation=3, fill=(255, 255, 255), p=1),
-                A.GridDistortion(distort_limit=0.1, border_mode=0, interpolation=3,
-                                 fill=(255, 255, 255), p=0.5),
-            ], p=1),
-            A.RGBShift(r_shift_limit=15, g_shift_limit=15, b_shift_limit=15, p=0.3),
-            A.GaussNoise(std_range=(0.0392, 0.0392), p=0.2),
-            A.RandomBrightnessContrast(brightness_limit=0.05, contrast_limit=(-0.2, 0), p=0.2),
-            A.ImageCompression(quality_range=(90, 95), p=0.2),
-            A.ToGray(p=1.0),
-            A.Normalize(mean=(0.7931, 0.7931, 0.7931), std=(0.1738, 0.1738, 0.1738)),
-            ToTensorV2()
-        ])
+        self.mean = 0.7931
+        self.std = 0.1738
 
-        self.val_test_transform = A.Compose([
-            A.ToGray(p=1.0),
-            A.Normalize(mean=(0.7931, 0.7931, 0.7931), std=(0.1738, 0.1738, 0.1738)),
-            ToTensorV2()
-        ])
+        self.train_transform = get_train_transform(self.img_size, self.mean, self.std)
+        self.val_test_transform = get_val_test_transform(self.img_size, self.mean, self.std)
 
         # Initialize tokenizer and datasets
         self.tokenizer = None
@@ -95,36 +80,11 @@ class MathWritingDataManager:
         print(f"{folder.stem.capitalize()} samples: {len(dataset)}")
         return dataset
 
-    def collate_fn(self, batch, img_size=(224, 224)):
+    def collate_fn(self, batch):
         images, latex_labels = zip(*batch)
-        max_width, max_height = img_size
 
-        # Create white background
-        mean = 0.7931
-        std = 0.1738
-        bg_value = (1.0 - mean) / std
-        src = torch.full((len(images), images[0].size(0), max_height, max_width),
-                        bg_value, dtype=images[0].dtype, device=images[0].device)
-
-        # Center and pad individual images
-        for i, img in enumerate(images):
-            _, img_h, img_w = img.size()
-
-            # Chỉ resize nếu ảnh lớn hơn max_height hoặc max_width
-            if img_h > max_height or img_w > max_width:
-                scale = min(max_height / img_h, max_width / img_w)
-                new_h = int(img_h * scale)
-                new_w = int(img_w * scale)
-                img = F.interpolate(img.unsqueeze(0), size=(new_h, new_w), mode='bilinear', align_corners=False).squeeze(0)
-            else:
-                new_h, new_w = img_h, img_w  # Giữ nguyên kích thước nếu ảnh nhỏ
-
-            # Center và pad ảnh
-            pad_h_start = (max_height - new_h) // 2
-            pad_w_start = (max_width - new_w) // 2
-            pad_h_end = pad_h_start + new_h
-            pad_w_end = pad_w_start + new_w
-            src[i, :, pad_h_start:pad_h_end, pad_w_start:pad_w_end] = img
+        # Stack images
+        src = torch.stack(images)
 
         # Pad label sequences
         pad_id = self.tokenizer.token_to_idx['<pad>']

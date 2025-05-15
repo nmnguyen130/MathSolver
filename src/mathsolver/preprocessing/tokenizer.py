@@ -11,6 +11,7 @@ class MathTokenizer:
             '<pad>', '<sos>', '<eos>', '<unk>',
             '<NUM>', '</NUM>',
             '<EQ>', '</EQ>', '<QUERY>', '</QUERY>', '<STEP>', '</STEP>', '<ANSWER>', '</ANSWER>',
+            '\\(', '\\)',
         ]
         self.operators = ['+', '-', '\\times', '\\cdot', '\\div', '=', '^', '\\pm',
                           '<', '>', '\\leq', '\\geq']
@@ -206,7 +207,9 @@ class MathTokenizer:
         parts = re.split(r'(\\[\(\[].*?\\[\)\]])', step)
         for part in parts:
             if part.startswith('\\(') and part.endswith('\\)'):
+                tokens.append('\\(')
                 tokens += self.tokenize(part[2:-2], is_latex=True)
+                tokens.append('\\)')
             else:
                 tokens += self.tokenize(part)
         tokens += ['</STEP>']
@@ -250,6 +253,8 @@ class MathTokenizer:
                 result.append(f' {token} ')
             # Giữ nguyên lệnh LaTeX
             elif token.startswith('\\'):
+                result.append(token)
+            elif token in ['\\(', '\\)', '\\[', '\\]']:
                 result.append(token)
             # Xử lý số và biến
             else:
@@ -297,31 +302,18 @@ if __name__ == '__main__':
     dataset = [
        {
             "problem_type": "basic_arithmetic",
-            "latex_equation": "(3.1 + 3) \\times (-5 - -7)",
-            "query": "Tính giá trị biểu thức",
+            "latex_equation": "8 \\times -35 =",
+            "query": "Tích của 8 và -35 là gì?",
             "solution_steps": [
-                "Biểu thức: \\((3 + 3) \\times (5 - 7)\\)",
-                "Tính ngoặc đầu tiên: \\(3 + 3 = 6\\)",
-                "Tính ngoặc thứ hai: \\(5 - 7 = -2\\)",
-                "Thực hiện phép *: \\(6 \\times -2 = -12\\)"
+            "Thực hiện phép nhân: \\(8 \\times -35 = -280\\)",
+            "Kết quả: \\(-280\\)"
             ],
-            "answer": "-12"
-        },
-        {
-            "problem_type": "linear",
-            "latex_equation": "70x = -9",
-            "query": "Tìm nghiệm của 7x = -9",
-            "solution_steps": [
-            "Phương trình: \\(7x = -9\\)",
-            "Chia hai vế cho 7: \\(x = \\frac{-9}{7}\\)",
-            "Kết quả: \\(x = \\frac{-9}{7}\\)"
-            ],
-            "answer": "x = \\frac{-9}{7}"
+            "answer": "-280"
         },
     ]
     
     tokenizer = MathTokenizer()
-    tokenizer.build_vocab('data/mathsolver/math_dataset.json')
+    tokenizer.build_vocab('data/mathsolver/math_basic_dataset.json')
     print("Vocabulary size:", len(tokenizer.vocab))
     
     # In từ vựng để kiểm tra

@@ -62,8 +62,8 @@ class MathDatasetGenerator:
             ProblemType.LINEAR: [self._generate_linear_equation],
         }
         self.weights = {
-            ProblemType.BASIC_ARITHMETIC: 0.7,  # 70% cơ bản
-            ProblemType.LINEAR: 0.3,
+            # ProblemType.BASIC_ARITHMETIC: 0.7,  # 70% cơ bản
+            ProblemType.LINEAR: 1,
         }
         self.fixed_cases = [
             # Phép cộng
@@ -410,7 +410,7 @@ class MathDatasetGenerator:
                     f"Kết quả: \\({formatted_result}\\)"
                 ]
         else:
-            steps = [f"Bài toán: \\({latex_eq}\\)", f"Kết quả: \\({formatted_result}\\)"]
+            steps = [f"Tính: \\({latex_eq} {formatted_result}\\)", f"Kết quả: \\({formatted_result}\\)"]
         return steps
 
     def _build_output(self, latex_eq: str, problem_type: ProblemType, steps: List[str], answer: str,
@@ -553,5 +553,5 @@ class MathDatasetGenerator:
 
 if __name__ == "__main__":
     generator = MathDatasetGenerator()
-    generator.generate_dataset(18000, "data/mathsolver/math_dataset.json", batch_size=100)
-    generator.validate_dataset("data/mathsolver/math_dataset.json")
+    generator.generate_dataset(25000, "data/mathsolver/math_linear_dataset.json", batch_size=100)
+    generator.validate_dataset("data/mathsolver/math_linear_dataset.json")

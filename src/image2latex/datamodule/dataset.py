@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 from pathlib import Path
@@ -14,7 +15,7 @@ class ImageLatexDataset(Dataset):
         self.samples = self._load_samples(latex_file)
 
     def _load_samples(self, latex_file: Path):
-        if not self.latex_file.exists():
+        if not latex_file.exists():
             raise FileNotFoundError(f"Latex file not found: {latex_file}")
 
         samples = []
@@ -30,14 +31,16 @@ class ImageLatexDataset(Dataset):
     def __getitem__(self, idx):
         image_name, latex_label = self.samples[idx]
         image_path = self.image_dir / image_name
-
+        
         try:
             image = Image.open(image_path).convert("RGB")
+            image = np.array(image)
         except Exception as e:
             raise RuntimeError(f"Error loading image at {image_path}: {e}")
 
         if self.transform:
-            image = self.transform(image)
+            augmented = self.transform(image=image)
+            image = augmented["image"]
 
         label_tensor = torch.tensor(self.tokenizer.encode(latex_label), dtype=torch.long)
         return image, label_tensor
