@@ -10,12 +10,12 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 latex_detector = LatexDetector(
     vocab_file="src/mathwriting/checkpoints/vocab.txt",
-    checkpoint_path="src/mathwriting/checkpoints/epoch_30.pt"
+    checkpoint_path="src/mathwriting/checkpoints/model_only.pt"
 )
 
 math_solver = MathSolver(
     vocab_file="src/mathsolver/checkpoints/vocab.txt",
-    checkpoint_path="src/mathsolver/checkpoints/epoch_29.pt"
+    checkpoint_path="src/mathsolver/checkpoints/model_only.pt"
 )
 
 @app.route("/predict", methods=["POST"])

@@ -1,7 +1,5 @@
 from pathlib import Path
-import numpy as np
 import torch
-from torchvision import transforms
 
 from src.mathsolver.models.model import MathSolverModel
 from src.mathsolver.preprocessing.tokenizer import MathTokenizer
@@ -17,7 +15,7 @@ class MathSolver:
         self.model = MathSolverModel(
             vocab_size=self.tokenizer.vocab_size,
         )
-        self.model.load_state_dict(torch.load(checkpoint_path, map_location=self.device)["model_state"])
+        self.model.load_state_dict(torch.load(checkpoint_path, map_location=self.device))
         self.model.to(self.device)
         self.model.eval()
 

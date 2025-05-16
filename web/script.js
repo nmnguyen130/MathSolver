@@ -91,7 +91,6 @@ solveBtn.addEventListener("click", async () => {
       query = "Tính";
     }
     formData.append("query", query);
-    console.log(formData);
 
     const response = await fetch("http://127.0.0.1:5000/solve", {
       method: "POST",

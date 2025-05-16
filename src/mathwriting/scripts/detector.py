@@ -18,7 +18,7 @@ class LatexDetector:
         self.model = MathWritingModel(
             vocab_size=self.tokenizer.vocab_size,
         )
-        self.model.load_state_dict(torch.load(checkpoint_path, map_location=self.device)["model_state"])
+        self.model.load_state_dict(torch.load(checkpoint_path, map_location=self.device))
         self.model.to(self.device)
         self.model.eval()
 

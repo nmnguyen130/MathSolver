@@ -1,7 +1,9 @@
+import json
 import os
+import random
 from typing import List, Dict
 import torch
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 from torch.nn.utils.rnn import pad_sequence
 
 from src.mathsolver.preprocessing.tokenizer import MathTokenizer
@@ -10,40 +12,54 @@ from src.mathsolver.datamodule.dataset import MathDataset
 class MathSolverDataManager:
     def __init__(
         self,
-        json_file: str,
+        json_folder: str,
         batch_size: int = 16,
         max_length: int = 512,
         num_workers: int = 0,
-        pin_memory: bool = False
+        pin_memory: bool = False,
+        val_ratio: float = 0.15
     ):
-        self.json_file = json_file
+        self.json_folder = json_folder
         self.batch_size = batch_size
         self.max_length = max_length
         self.num_workers = num_workers
         self.pin_memory = pin_memory
+        self.val_ratio = val_ratio
 
         self._check_data_dirs()
-        self._load_data()
-        self._split_data()
+        self._load_data_and_split()
 
     def _check_data_dirs(self):
-        if not os.path.exists(self.json_file):
-            raise FileNotFoundError(f"JSON file not found: {self.json_file}")
+        if not os.path.exists(self.json_folder):
+            raise FileNotFoundError(f"Folder not found: {self.json_folder}")
 
-    def _load_data(self):
+        # Kiểm tra có ít nhất 1 file JSON trong folder
+        json_files = [f for f in os.listdir(self.json_folder) if f.endswith('.json')]
+        if len(json_files) == 0:
+            raise FileNotFoundError(f"No JSON files found in folder: {self.json_folder}")
+        self.json_files = [os.path.join(self.json_folder, f) for f in json_files]
+
+    def _load_data_and_split(self):
+        all_samples = []
+        for json_file in self.json_files:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                all_samples.extend(data)
+
+        random.seed(42)
+        random.shuffle(all_samples)
+
+        total_size = len(all_samples)
+        val_size = int(total_size * self.val_ratio)
+        train_data = all_samples[val_size:]
+        val_data = all_samples[:val_size]
+        
         self.tokenizer = MathTokenizer()
-        self.tokenizer.build_vocab(self.json_file)
+        self.tokenizer.build_vocab(all_samples)
         self.vocab_size = len(self.tokenizer.vocab)
 
-        self.dataset = MathDataset(self.json_file, self.tokenizer, self.max_length)
-
-    def _split_data(self, val_size: float = 0.2) -> None:
-        dataset_size = len(self.dataset)
-        val_size = int(val_size * dataset_size)
-        train_size = dataset_size - val_size
-
-        torch.manual_seed(42)
-        self.train_dataset, self.val_dataset = random_split(self.dataset, [train_size, val_size])
+        self.train_dataset = MathDataset(train_data, self.tokenizer, self.max_length)
+        self.val_dataset = MathDataset(val_data, self.tokenizer, self.max_length)
 
     def collate_fn(self, batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
         pad_id = self.tokenizer.token_to_idx['<pad>']
@@ -87,7 +103,7 @@ class MathSolverDataManager:
         return decoded_labels
     
 if __name__ == '__main__':
-    dataloader = MathSolverDataManager(json_file='./data/mathsolver/math_dataset.json', batch_size=1, max_length=512)
+    dataloader = MathSolverDataManager(json_folder='./data/mathsolver', batch_size=1, max_length=512)
     train_loader = dataloader.get_dataloader('train')
 
     for batch in train_loader:

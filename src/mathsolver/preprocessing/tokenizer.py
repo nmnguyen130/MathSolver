@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import re
 from collections import Counter
@@ -69,8 +70,16 @@ class MathTokenizer:
     
     def _is_number_start(self, token: str, next_token: str, last_token: str) -> bool:
         """Kiểm tra xem token có phải là khởi đầu của số (bao gồm số âm/dương)."""
-        return (token in ['-', '+'] and next_token and next_token.isdigit() and 
-                (last_token is None or last_token in ['(', '{'] + self.operators))
+        if token not in ['-', '+'] or not next_token or not next_token.isdigit():
+            return False
+
+        if last_token is None or last_token in self.operators or last_token in self.brackets:
+            return True
+
+        if last_token not in self.special_tokens:
+            return True
+
+        return False
     
     def _tokenize_number(self, tokens: List[str], i: int, last_token: str) -> Tuple[List[str], int, str]:
         """Xử lý số (bao gồm số âm/dương và thập phân)."""
@@ -128,47 +137,10 @@ class MathTokenizer:
             return self.tokenize_latex(text)
         return self.tokenize_vietnamese(text)
 
-    def _get_token_feature(self, token: str, in_number: bool) -> List[float]:
-        """Tạo đặc trưng cho một token."""
-        feat = [0.0] * 7
-        if token in self.special_tokens:
-            return feat
-        if token in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.']:
-            feat[0] = 1.0
-            if in_number:
-                feat[6] = 1.0
-        elif token in ['x', 'y', 'f', "f'", 'i'] or re.match(r'[a-zA-Z](?:\^\{.*?\})?', token):
-            feat[1] = 1.0
-        elif token in self.operators:
-            feat[2] = 1.0
-        elif token in self.brackets:
-            feat[3] = 1.0
-        elif token in self.latex_commands:
-            feat[4] = 1.0
-        elif token in self.math_functions:
-            feat[5] = 1.0
-        return feat
-    
-    def get_structure_features(self, tokens: List[str]) -> List[List[float]]:
-        """
-        Tạo đặc trưng cấu trúc cho các token.
-        Trả về vector 7 chiều cho mỗi token:
-        [is_number, is_variable, is_operator, is_bracket, is_latex_cmd, is_function, is_part_of_number]
-        """
-        features = []
-        in_number = False
-        for token in tokens:
-            features.append(self._get_token_feature(token, in_number))
-            in_number = in_number or token == '<NUM>'
-            in_number = in_number and token != '</NUM>'
-        return features
-
-    def build_vocab(self, dataset_dir: str):
-        with open(dataset_dir, 'r', encoding='utf-8') as f:
-            dataset = json.load(f)
-
+    def build_vocab(self, data: str):
         counter = Counter()
-        for item in dataset:
+
+        for item in data:
             # Tách equation (LaTeX)
             counter.update(self.tokenize(item['latex_equation'], is_latex=True))
             # Tách query (tiếng Việt)
@@ -301,19 +273,37 @@ if __name__ == '__main__':
     # Dataset mẫu
     dataset = [
        {
-            "problem_type": "basic_arithmetic",
-            "latex_equation": "8 \\times -35 =",
-            "query": "Tích của 8 và -35 là gì?",
+            "problem_type": "linear",
+            "latex_equation": "-10x + -4 = -7x + -4",
+            "query": "Tìm x sao cho -10x + -4 = -7x + -4",
             "solution_steps": [
-            "Thực hiện phép nhân: \\(8 \\times -35 = -280\\)",
-            "Kết quả: \\(-280\\)"
+                "Phương trình: \\(-10x + -4 = -7x + -4\\)",
+                "Trừ hai vế cho \\(-7x\\): \\(-10x + -4 - -7x = -7x + -4 - -7x\\)",
+                "Rút gọn: \\(-3x + -4 = -4\\)",
+                "Trừ hai vế cho -4: \\(-3x + -4 - -4 = -4 - -4\\)",
+                "Rút gọn: \\(-3x = 0\\)",
+                "Chia hai vế cho -3: \\(x = \\frac{0}{-3}\\)",
+                "Kết quả: \\(x = 0\\)"
             ],
-            "answer": "-280"
+            "answer": "x = 0"
         },
     ]
+
+    json_folder = 'data/mathsolver'
+
+    json_files = [f for f in os.listdir(json_folder) if f.endswith('.json')]
+    if len(json_files) == 0:
+        raise FileNotFoundError(f"No JSON files found in folder: {json_folder}")
+    json_files = [os.path.join(json_folder, f) for f in json_files]
+
+    all_samples = []
+    for json_file in json_files:
+        with open(json_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            all_samples.extend(data)
     
     tokenizer = MathTokenizer()
-    tokenizer.build_vocab('data/mathsolver/math_basic_dataset.json')
+    tokenizer.build_vocab(all_samples)
     print("Vocabulary size:", len(tokenizer.vocab))
     
     # In từ vựng để kiểm tra
@@ -321,6 +311,7 @@ if __name__ == '__main__':
     
     # Test mã hóa và giải mã
     for item in dataset:
+        print(item['latex_equation'], item['query'], item['solution_steps'], item['answer'])
         input_ids, output_ids = tokenizer.encode(item['latex_equation'], item['query'], item['solution_steps'], item['answer'])
         print("\nInput IDs:", input_ids)
         print("Input decoded:", tokenizer.decode(input_ids))

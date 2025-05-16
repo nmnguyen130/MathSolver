@@ -4,20 +4,17 @@ import json
 import gc
 from multiprocessing import Pool
 from typing import Dict, Optional, List, Tuple
-from tqdm import tqdm
 from enum import Enum
 
 class ProblemType(Enum):
-    BASIC_ARITHMETIC = "basic_arithmetic"
+    BASIC = "basic"
     LINEAR = "linear"
 
 class MathDatasetGenerator:
-    """Class để tạo dataset toán học với các bài toán đa dạng và chuẩn hóa số."""
-
     def __init__(self):
         self.x, self.y = sp.symbols('x y')
         self.query_templates: Dict[ProblemType, List[str]] = {
-            ProblemType.BASIC_ARITHMETIC: {
+            ProblemType.BASIC: {
                 '+': [
                     "Tính tổng của hai số {a} và {b}",
                     "Cộng {a} với {b}, kết quả là bao nhiêu?",
@@ -51,7 +48,7 @@ class MathDatasetGenerator:
             ]
         }
         self.generators = {
-            ProblemType.BASIC_ARITHMETIC: [
+            ProblemType.BASIC: [
                 self._generate_basic_addition,
                 self._generate_basic_subtraction,
                 self._generate_basic_multiplication,
@@ -62,7 +59,7 @@ class MathDatasetGenerator:
             ProblemType.LINEAR: [self._generate_linear_equation],
         }
         self.weights = {
-            # ProblemType.BASIC_ARITHMETIC: 0.7,  # 70% cơ bản
+            # ProblemType.BASIC: 1,
             ProblemType.LINEAR: 1,
         }
         self.fixed_cases = [
@@ -134,7 +131,7 @@ class MathDatasetGenerator:
 
     def _random_query(self, problem_type: ProblemType, op: str = None,
                       a: Optional[int] = None, b: Optional[int] = None, latex_eq: str = None) -> str:
-        if problem_type == ProblemType.BASIC_ARITHMETIC and op:
+        if problem_type == ProblemType.BASIC and op:
             query = random.choice(self.query_templates[problem_type][op])
             return query.format(a=a, b=b)
         elif problem_type == ProblemType.LINEAR and latex_eq:
@@ -169,7 +166,7 @@ class MathDatasetGenerator:
             result = a + b
             latex_eq = f"{a} + {b} ="
             steps = self._build_steps(latex_eq, f"{a} + {b} = {result}", result, detailed, op='+', a=a, b=b)
-            return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, self._format_number(result), op='+', a=a, b=b)
+            return self._build_output(latex_eq, ProblemType.BASIC, steps, self._format_number(result), op='+', a=a, b=b)
         except Exception:
             return None
     
@@ -180,7 +177,7 @@ class MathDatasetGenerator:
             result = a - b
             latex_eq = f"{a} - {b} ="
             steps = self._build_steps(latex_eq, f"{a} - {b} = {result}", result, detailed, op='-', a=a, b=b)
-            return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, self._format_number(result), op='-', a=a, b=b)
+            return self._build_output(latex_eq, ProblemType.BASIC, steps, self._format_number(result), op='-', a=a, b=b)
         except Exception:
             return None
 
@@ -191,7 +188,7 @@ class MathDatasetGenerator:
             result = a * b
             latex_eq = f"{a} \\times {b} ="
             steps = self._build_steps(latex_eq, f"{a} \\times {b} = {result}", result, detailed, op='*', a=a, b=b)
-            return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, self._format_number(result), op='*', a=a, b=b)
+            return self._build_output(latex_eq, ProblemType.BASIC, steps, self._format_number(result), op='*', a=a, b=b)
         except Exception:
             return None
 
@@ -205,7 +202,7 @@ class MathDatasetGenerator:
             a = b * result
             latex_eq = f"{a} \\div {b} ="
             steps = self._build_steps(latex_eq, f"{a} \\div {b} = {result}", result, detailed, op='/', a=a, b=b)
-            return self._build_output(latex_eq, ProblemType.BASIC_ARITHMETIC, steps, self._format_number(result), op='/', a=a, b=b)
+            return self._build_output(latex_eq, ProblemType.BASIC, steps, self._format_number(result), op='/', a=a, b=b)
         except Exception:
             return None
         
@@ -223,7 +220,7 @@ class MathDatasetGenerator:
             ]
             if not detailed:
                 steps = [steps[0], steps[-1]]
-            return self._build_output(latex_expr, ProblemType.BASIC_ARITHMETIC, steps, self._format_number(result))
+            return self._build_output(latex_expr, ProblemType.BASIC, steps, self._format_number(result))
         except Exception:
             return None
         
@@ -257,7 +254,7 @@ class MathDatasetGenerator:
             ]
             if not detailed:
                 steps = [steps[0], steps[-1]]
-            return self._build_output(latex_expr, ProblemType.BASIC_ARITHMETIC, steps, self._format_number(result))
+            return self._build_output(latex_expr, ProblemType.BASIC, steps, self._format_number(result))
         except Exception:
             return None
 
@@ -278,7 +275,11 @@ class MathDatasetGenerator:
                 answer = f"x = {self._format_number(solution[0])}" if solution else "Không có nghiệm"
                 steps = [
                     f"Phương trình: \\({latex_eq}\\)",
-                    f"Chuyển {b} sang vế phải: \\({a}x = {c - b}\\)",
+                    random.choice([
+                        f"Trừ {b} hai vế: \\({a}x + {b} - {b} = {c} - {b}\\)",
+                        f"Chuyển {b} sang vế phải: \\({a}x = {c} - {b}\\)",
+                    ]),
+                    f"Rút gọn: \\({a}x = {c - b}\\)",
                     f"Chia hai vế cho {a}: \\(x = \\frac{{{c - b}}}{{{a}}}\\)",
                     f"Kết quả: \\({answer}\\)"
                 ]
@@ -289,8 +290,13 @@ class MathDatasetGenerator:
                 answer = f"x = {self._format_number(solution[0])}" if solution else "Không có nghiệm"
                 steps = [
                     f"Phương trình: \\({latex_eq}\\)",
-                    f"Mở ngoặc: \\({a}x + {a * d} = {c}\\)",
-                    f"Chuyển {a * d} sang vế phải: \\({a}x = {c - a * d}\\)",
+                    f"Mở ngoặc biểu thức: \\({a}(x + {d}) = {a}x + {a} \\times {d} = {a}x + {a * d}\\)",
+                    f"Phương trình sau khi mở ngoặc: \\({a}x + {a * d} = {c}\\)",
+                    random.choice([
+                        f"Trừ {a * d} hai vế: \\({a}x + {a * d} - {a * d} = {c} - {a * d}\\)",
+                        f"Chuyển {a * d} sang vế phải: \\({a}x = {c} - {a * d}\\)",
+                    ]),
+                    f"Rút gọn: \\({a}x = {c - a * d}\\)",
                     f"Chia hai vế cho {a}: \\(x = \\frac{{{c - a * d}}}{{{a}}}\\)",
                     f"Kết quả: \\({answer}\\)"
                 ]
@@ -301,18 +307,25 @@ class MathDatasetGenerator:
                 answer = f"x = {self._format_number(solution[0])}" if solution else "Không có nghiệm"
                 steps = [
                     f"Phương trình: \\({latex_eq}\\)",
-                    f"Nhân hai vế với {k}: \\({a}x + {b} = {c * k}\\)",
-                    f"Chuyển {b} sang vế phải: \\({a}x = {c * k - b}\\)",
+                    f"Nhân cả hai vế với {k}: \\({k} \\times \\frac{{{a}x + {b}}}{{{k}}} = {k} \\times {c}\\)",
+                    f"Rút gọn: \\({a}x + {b} = {c * k}\\)",
+                    random.choice([
+                        f"Trừ {b} hai vế: \\({a}x + {b} - {b} = {c * k} - {b}\\)",
+                        f"Chuyển {b} sang vế phải: \\({a}x = {c * k} - {b}\\)",
+                    ]),
+                    f"Rút gọn: \\({a}x = {c * k - b}\\)",
                     f"Chia hai vế cho {a}: \\(x = \\frac{{{c * k - b}}}{{{a}}}\\)",
                     f"Kết quả: \\({answer}\\)"
                 ]
             elif form == "subtraction":  # ax = c - b
                 eq = sp.Eq(a * self.x, c - b)
-                latex_eq = f"{a}x = {c - b}"
+                latex_eq = f"{a}x = {c} - {b}"
                 solution = sp.solve(eq, self.x)
                 answer = f"x = {self._format_number(solution[0])}" if solution else "Không có nghiệm"
                 steps = [
                     f"Phương trình: \\({latex_eq}\\)",
+                    f"Tính vế phải: \\({c} - {b} = {c - b}\\)",
+                    f"Phương trình sau khi rút gọn: \\({a}x = {c - b}\\)",
                     f"Chia hai vế cho {a}: \\(x = \\frac{{{c - b}}}{{{a}}}\\)",
                     f"Kết quả: \\({answer}\\)"
                 ]
@@ -322,18 +335,33 @@ class MathDatasetGenerator:
                 answer = "Không có nghiệm"
                 steps = [
                     f"Phương trình: \\({latex_eq}\\)",
-                    f"Chuyển {a}x sang vế trái: \\({b} = {c}\\)",
-                    f"Kết luận: Vì {b} \\neq {c}, phương trình không có nghiệm",
+                    random.choice([
+                        f"Trừ \\({a}x\\) hai vế: \\({a}x + {b} - {a}x = {a}x + {c} - {a}x\\)",
+                        f"Chuyển \\({a}x\\) sang vế phải: \\({b} = {a}x + {c} - {a}x\\)",
+                    ]),
+                    f"Rút gọn: \\({b} = {c}\\)",
+                    f"Kết luận: Vì \\({b} \\neq {c}\\), phương trình không có nghiệm",
                     f"Kết quả: \\({answer}\\)"
                 ]
             elif form == "infinite_solutions":  # ax + b = ax + b
                 eq = sp.Eq(a * self.x + b, a * self.x + b)
                 latex_eq = f"{a}x + {b} = {a}x + {b}"
                 answer = "Vô số nghiệm"
+                choice = random.choice([
+                    [
+                        f"Trừ hai vế cho \\({a}x + {b}\\): \\({a}x + {b} - ({a}x + {b}) = {a}x + {b} - ({a}x + {b})\\)",
+                        f"Mở ngoặc: \\({a}x + {b} - {a}x - {b} = {a}x + {b} - {a}x - {b}\\)"
+                    ],
+                    [
+                        f"Chuyển \\({a}x + {b}\\) sang vế phải: \\(0 = {a}x + {b} - ({a}x + {b})\\)",
+                        f"Mở ngoặc: \\(0 = {a}x + {b} - {a}x - {b}\\)"
+                    ],
+                ])
                 steps = [
                     f"Phương trình: \\({latex_eq}\\)",
-                    f"Chuyển {a}x + {b} sang vế trái: \\(0 = 0\\)",
-                    f"Kết luận: Phương trình đúng với mọi x",
+                    *choice,
+                    f"Rút gọn: \\(0 = 0\\)",
+                    f"Vì phương trình đúng với mọi giá trị của \\(x\\), nên nó có vô số nghiệm",
                     f"Kết quả: \\({answer}\\)"
                 ]
             elif form == "both_sides":  # ax + b = cx + d
@@ -344,9 +372,17 @@ class MathDatasetGenerator:
                 latex_eq = f"{a}x + {b} = {c2}x + {d}"
                 solution = sp.solve(eq, self.x)
                 answer = f"x = {self._format_number(solution[0])}" if solution else "Không có nghiệm"
+                choice = random.choice([
+                    [
+                        f"Trừ hai vế cho \\({c2}x\\): \\({a}x + {b} - {c2}x = {c2}x + {d} - {c2}x\\)",
+                        f"Rút gọn: \\({a - c2}x + {b} = {d}\\)",
+                        f"Trừ hai vế cho {b}: \\({a - c2}x + {b} - {b} = {d} - {b}\\)",
+                    ],
+                    f"Chuyển \\({c2}x\\) sang vế trái và \\({b}\\) sang vế phải: \\({a}x - {c2}x = {d} - {b}\\)",
+                ])
                 steps = [
                     f"Phương trình: \\({latex_eq}\\)",
-                    f"Chuyển {c2}x sang vế trái và {b} sang vế phải: \\({a}x - {c2}x = {d} - {b}\\)",
+                    *choice,
                     f"Rút gọn: \\({a - c2}x = {d - b}\\)",
                     f"Chia hai vế cho {a - c2}: \\(x = \\frac{{{d - b}}}{{{a - c2}}}\\)",
                     f"Kết quả: \\({answer}\\)"
@@ -462,7 +498,7 @@ class MathDatasetGenerator:
             steps = self._build_steps(latex_eq, calc_step, case['result'], detailed, op=op, a=a, b=b)
             return self._build_output(
                 latex_eq=latex_eq,
-                problem_type=ProblemType.BASIC_ARITHMETIC,
+                problem_type=ProblemType.BASIC,
                 steps=steps,
                 answer=self._format_number(case['result']),
                 op=op,
@@ -478,14 +514,14 @@ class MathDatasetGenerator:
             problem_type = random.choices(list(self.weights.keys()), list(self.weights.values()), k=1)[0]
             generator = random.choice(self.generators[problem_type])
             level = random.choice(["easy", "medium"])
-            detailed = random.random() > 0.3
+            detailed = random.random() > 0.1
             sample = generator(detailed=detailed, level=level)
             gc.collect()
             return sample
         except Exception:
             return None
 
-    def generate_dataset(self, num_samples: int, output_file: str, batch_size: int = 100, max_attempts: int = 40000) -> None:
+    def generate_dataset(self, num_samples: int, output_file: str, batch_size: int = 100, max_attempts: int = 100000) -> None:
         dataset = []
         seen_problems = set()  # Lưu trữ các bài toán đã sinh
 
@@ -553,5 +589,5 @@ class MathDatasetGenerator:
 
 if __name__ == "__main__":
     generator = MathDatasetGenerator()
-    generator.generate_dataset(25000, "data/mathsolver/math_linear_dataset.json", batch_size=100)
+    generator.generate_dataset(16057, "data/mathsolver/math_linear_dataset.json", batch_size=100)
     generator.validate_dataset("data/mathsolver/math_linear_dataset.json")

@@ -12,7 +12,7 @@ from src.mathsolver.models.model import MathSolverModel
 class Trainer:
     def __init__(
         self,
-        json_file: str,
+        json_folder: str,
         checkpoint_dir: str = "checkpoints",
         num_epochs: int = 30,
         batch_size: int = 16,
@@ -22,7 +22,7 @@ class Trainer:
         min_delta: float = 0.0001,
         device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
     ):
-        self.json_file = json_file
+        self.json_folder = json_folder
         self.checkpoint_dir = checkpoint_dir
         self.num_epochs = num_epochs
         self.batch_size = batch_size
@@ -37,7 +37,7 @@ class Trainer:
         self.start_epoch = 0
 
         os.makedirs(self.checkpoint_dir, exist_ok=True)
-        self.ckpt_path = os.path.join(self.checkpoint_dir, "epoch_29.pt")
+        self.ckpt_path = os.path.join(self.checkpoint_dir, "epoch_27.pt")
         
         self._load_data()
         self._initialize_model()
@@ -45,7 +45,7 @@ class Trainer:
 
     def _load_data(self):
         self.data_manager = MathSolverDataManager(
-            json_file=self.json_file,
+            json_folder=self.json_folder,
             batch_size=self.batch_size,
         )
         print(f"Data Manager loaded with vocab size: {self.data_manager.vocab_size}")
@@ -233,19 +233,19 @@ class Trainer:
 
 if __name__ == '__main__':
     trainer = Trainer(
-        json_file="data/mathsolver/math_dataset.json",
+        json_folder="data/mathsolver",
         checkpoint_dir="src/mathsolver/checkpoints",
         num_epochs=30,
         batch_size=16,
         learning_rate=1e-4,
         weight_decay=1e-4,
     )
-    trainer.export_model_only("src/mathsolver/checkpoints/model_only.pt")
+    # trainer.export_model_only("src/mathsolver/checkpoints/model_only.pt")
     # trainer.train()
-    # equation = "7 + 8 ="
-    # query = "cộng"
-    # solution = trainer.predict(equation, query)
+    equation = "2 + 3"
+    query = "Tính"
+    solution = trainer.predict(equation, query)
     
-    # print(f"Equation: {equation}")
-    # print(f"Query: {query}")
-    # print(f"Predicted Solution: {solution}")
+    print(f"Equation: {equation}")
+    print(f"Query: {query}")
+    print(f"Predicted Solution: {solution}")

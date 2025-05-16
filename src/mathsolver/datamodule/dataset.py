@@ -1,5 +1,3 @@
-import re
-import json
 from typing import Dict, List
 import torch
 from torch.utils.data import Dataset
@@ -7,13 +5,10 @@ from torch.utils.data import Dataset
 from src.mathsolver.preprocessing.tokenizer import MathTokenizer
 
 class MathDataset(Dataset):
-    def __init__(self, json_file: str, tokenizer: MathTokenizer, max_length: int = 512):
+    def __init__(self, data: List[Dict], tokenizer: MathTokenizer, max_length: int = 512):
+        self.data = data
         self.max_length = max_length
         self.tokenizer = tokenizer
-
-        # Read dataset from JSON file
-        with open(json_file, 'r', encoding='utf-8') as f:
-            self.data = json.load(f)
 
     def __len__(self) -> int:
         return len(self.data)
