@@ -49,8 +49,8 @@ def solve():
     print(equation, query)
     
     try:
-        solution = math_solver.solve(equation, query)
-        return jsonify({"solution": solution})
+        result = math_solver.solve(equation, query)
+        return jsonify({"result": result})
     except Exception as e:
         import traceback
         traceback.print_exc()
